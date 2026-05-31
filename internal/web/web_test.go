@@ -16,6 +16,7 @@ import (
 type memoryStore struct {
 	links        map[string]store.Link
 	listTopCalls int
+	listTopLimit int
 }
 
 func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error) {
@@ -28,6 +29,7 @@ func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error
 
 func (s *memoryStore) ListTop(_ context.Context, limit int) ([]store.Link, error) {
 	s.listTopCalls++
+	s.listTopLimit = limit
 	var links []store.Link
 	for _, link := range s.links {
 		links = append(links, link)
@@ -45,6 +47,14 @@ func (s *memoryStore) RecordUse(_ context.Context, shortcut string) error {
 	}
 	link.UseCount++
 	s.links[shortcut] = link
+	return nil
+}
+
+func (s *memoryStore) Delete(_ context.Context, shortcut string) error {
+	if _, ok := s.links[shortcut]; !ok {
+		return store.ErrNotFound
+	}
+	delete(s.links, shortcut)
 	return nil
 }
 
@@ -75,16 +85,19 @@ func TestSaveEditAndRedirectNestedShortcut(t *testing.T) {
 	if saveResponse.Code != http.StatusSeeOther {
 		t.Fatalf("save status = %d", saveResponse.Code)
 	}
+	if location := saveResponse.Header().Get("Location"); location != "/edit/docs/onboarding?saved=1" {
+		t.Fatalf("save location = %q", location)
+	}
 	if got := linkStore.links["docs/onboarding"].DestinationURL; got != "https://example.com/start" {
 		t.Fatalf("stored URL = %q", got)
 	}
 
-	edit := httptest.NewRequest(http.MethodGet, "/edit/docs/onboarding", nil)
+	edit := httptest.NewRequest(http.MethodGet, "/edit/docs/onboarding?saved=1", nil)
 	editResponse := httptest.NewRecorder()
 	handler.ServeHTTP(editResponse, edit)
 	editBody := editResponse.Body.String()
-	if !strings.Contains(editBody, "https://example.com/start") || !strings.Contains(editBody, `value="docs/onboarding" disabled`) {
-		t.Fatal("edit response does not include stored URL and disabled shortcut")
+	if !strings.Contains(editBody, "https://example.com/start") || !strings.Contains(editBody, `value="docs/onboarding" disabled`) || !strings.Contains(editBody, "Saved.") {
+		t.Fatal("edit response does not include stored URL, disabled shortcut, and saved message")
 	}
 
 	redirect := httptest.NewRequest(http.MethodGet, "/docs/onboarding", nil)
@@ -139,18 +152,49 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	shown := httptest.NewRecorder()
 	handler.ServeHTTP(shown, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
 	body := shown.Body.String()
-	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, "3x") || !strings.Contains(body, "/edit/docs") {
+	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.listTopCalls != 1 {
 		t.Fatalf("ListTop() called %d times, want 1", linkStore.listTopCalls)
 	}
+	if linkStore.listTopLimit != 10 {
+		t.Fatalf("ListTop() limit = %d, want 10", linkStore.listTopLimit)
+	}
 }
 
-func TestUnknownShortcutReturnsNotFound(t *testing.T) {
-	handler, _ := newTestHandler(t)
+func TestUnknownShortcutOffersToCreateLink(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/missing", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "This shortcut doesn&#39;t exist yet.") || !strings.Contains(body, `value="missing" disabled`) || !strings.Contains(body, `action="/edit/missing"`) {
+		t.Fatalf("response body = %q", body)
+	}
+
+	form := url.Values{"destination_url": {"https://example.com/missing"}}
+	save := httptest.NewRequest(http.MethodPost, "/edit/missing", strings.NewReader(form.Encode()))
+	save.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	saveResponse := httptest.NewRecorder()
+	handler.ServeHTTP(saveResponse, save)
+	if saveResponse.Code != http.StatusSeeOther {
+		t.Fatalf("save status = %d", saveResponse.Code)
+	}
+	if location := saveResponse.Header().Get("Location"); location != "/edit/missing?saved=1" {
+		t.Fatalf("save location = %q", location)
+	}
+	if got := linkStore.links["missing"].DestinationURL; got != "https://example.com/missing" {
+		t.Fatalf("stored URL = %q", got)
+	}
+}
+
+func TestInvalidShortcutReturnsNotFound(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/has%20space", nil))
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("status = %d", response.Code)
 	}
@@ -190,5 +234,61 @@ func TestCreateRejectsInvalidValuesAndPreservesFields(t *testing.T) {
 	body := response.Body.String()
 	if !strings.Contains(body, "reserved path") || !strings.Contains(body, "edit/admin") || !strings.Contains(body, "not-a-url") {
 		t.Fatalf("response body = %q", body)
+	}
+}
+
+func TestCreateRejectsInvalidShortcutCharacters(t *testing.T) {
+	for _, shortcut := range []string{"has space", "has@symbol", "delete/admin"} {
+		t.Run(shortcut, func(t *testing.T) {
+			handler, linkStore := newTestHandler(t)
+			form := url.Values{
+				"shortcut":        {shortcut},
+				"destination_url": {"https://example.com"},
+			}
+			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d", response.Code)
+			}
+			if len(linkStore.links) != 0 {
+				t.Fatalf("stored invalid shortcut %q", shortcut)
+			}
+		})
+	}
+}
+
+func TestDeleteRequiresConfirmationPost(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.links["docs/onboarding"] = store.Link{
+		Shortcut:       "docs/onboarding",
+		DestinationURL: "https://example.com/docs",
+	}
+
+	confirm := httptest.NewRecorder()
+	handler.ServeHTTP(confirm, httptest.NewRequest(http.MethodGet, "/delete/docs/onboarding", nil))
+	if confirm.Code != http.StatusOK {
+		t.Fatalf("confirmation status = %d", confirm.Code)
+	}
+	body := confirm.Body.String()
+	if !strings.Contains(body, "Delete shortcut") || !strings.Contains(body, "go/docs/onboarding") || !strings.Contains(body, "https://example.com/docs") {
+		t.Fatalf("confirmation body = %q", body)
+	}
+	if _, ok := linkStore.links["docs/onboarding"]; !ok {
+		t.Fatal("GET confirmation deleted link")
+	}
+
+	remove := httptest.NewRecorder()
+	handler.ServeHTTP(remove, httptest.NewRequest(http.MethodPost, "/delete/docs/onboarding", nil))
+	if remove.Code != http.StatusSeeOther {
+		t.Fatalf("delete status = %d", remove.Code)
+	}
+	if location := remove.Header().Get("Location"); location != "/" {
+		t.Fatalf("delete location = %q", location)
+	}
+	if _, ok := linkStore.links["docs/onboarding"]; ok {
+		t.Fatal("POST delete did not remove link")
 	}
 }

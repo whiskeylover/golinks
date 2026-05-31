@@ -18,10 +18,13 @@ import (
 //go:embed templates/*.html static/*
 var assets embed.FS
 
+const topLinksLimit = 10
+
 type linkStore interface {
 	Get(ctx context.Context, shortcut string) (store.Link, error)
 	ListTop(ctx context.Context, limit int) ([]store.Link, error)
 	RecordUse(ctx context.Context, shortcut string) error
+	Delete(ctx context.Context, shortcut string) error
 	Upsert(ctx context.Context, shortcut, destinationURL string) error
 }
 
@@ -37,6 +40,7 @@ type pageData struct {
 	Shortcut       string
 	DestinationURL string
 	Error          string
+	Message        string
 }
 
 func New(linkStore linkStore, logger *slog.Logger) (*Server, error) {
@@ -61,6 +65,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /{$}", s.create)
 	mux.HandleFunc("GET /edit/{shortcut...}", s.edit)
 	mux.HandleFunc("POST /edit/{shortcut...}", s.save)
+	mux.HandleFunc("GET /delete/{shortcut...}", s.confirmDelete)
+	mux.HandleFunc("POST /delete/{shortcut...}", s.delete)
 	mux.HandleFunc("GET /{shortcut...}", s.redirect)
 	return mux
 }
@@ -96,7 +102,7 @@ func (s *Server) renderHome(w http.ResponseWriter, r *http.Request, data pageDat
 		return
 	}
 
-	links, err := s.store.ListTop(r.Context(), 5)
+	links, err := s.store.ListTop(r.Context(), topLinksLimit)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -124,6 +130,7 @@ func (s *Server) edit(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "edit.html", pageData{
 		Shortcut:       link.Shortcut,
 		DestinationURL: link.DestinationURL,
+		Message:        savedMessage(r),
 	})
 }
 
@@ -145,7 +152,44 @@ func (s *Server) save(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/edit/"+shortcut, http.StatusSeeOther)
+	http.Redirect(w, r, "/edit/"+shortcut+"?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) confirmDelete(w http.ResponseWriter, r *http.Request) {
+	shortcut, err := normalizeShortcut(r.PathValue("shortcut"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	link, err := s.store.Get(r.Context(), shortcut)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.render(w, r, "delete.html", pageData{
+		Shortcut:       link.Shortcut,
+		DestinationURL: link.DestinationURL,
+	})
+}
+
+func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
+	shortcut, err := normalizeShortcut(r.PathValue("shortcut"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.store.Delete(r.Context(), shortcut); errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	} else if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +200,10 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	}
 	link, err := s.store.Get(r.Context(), shortcut)
 	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
+		s.render(w, r, "edit.html", pageData{
+			Shortcut: shortcut,
+			Message:  "This shortcut doesn't exist yet. Add a destination URL to create it.",
+		})
 		return
 	}
 	if err != nil {
@@ -192,15 +239,34 @@ func normalizeShortcut(value string) (string, error) {
 	if shortcut == "" {
 		return shortcut, errors.New("shortcut is required")
 	}
-	if strings.HasPrefix(shortcut, "edit/") || shortcut == "edit" || strings.HasPrefix(shortcut, "static/") || shortcut == "static" {
+	if hasReservedPrefix(shortcut) {
 		return shortcut, errors.New("shortcut uses a reserved path")
 	}
 	for _, part := range strings.Split(shortcut, "/") {
-		if part == "" || part == "." || part == ".." {
+		if part == "" || part == "." || part == ".." || !isValidShortcutSegment(part) {
 			return shortcut, errors.New("shortcut contains an invalid path segment")
 		}
 	}
 	return shortcut, nil
+}
+
+func hasReservedPrefix(shortcut string) bool {
+	for _, reserved := range []string{"delete", "edit", "static"} {
+		if shortcut == reserved || strings.HasPrefix(shortcut, reserved+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidShortcutSegment(segment string) bool {
+	for _, char := range segment {
+		if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-' || char == '_' || char == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validateDestinationURL(value string) error {
@@ -209,6 +275,13 @@ func validateDestinationURL(value string) error {
 		return errors.New("destination URL must be an absolute http:// or https:// URL")
 	}
 	return nil
+}
+
+func savedMessage(r *http.Request) string {
+	if r.URL.Query().Has("saved") {
+		return "Saved."
+	}
+	return ""
 }
 
 func errorMessage(errs ...error) string {

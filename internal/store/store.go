@@ -200,6 +200,21 @@ func (s *Store) RecordUse(ctx context.Context, shortcut string) error {
 	return nil
 }
 
+func (s *Store) Delete(ctx context.Context, shortcut string) error {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM links WHERE shortcut = ?", shortcut)
+	if err != nil {
+		return fmt.Errorf("delete link %q: %w", shortcut, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete link %q: %w", shortcut, err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) Upsert(ctx context.Context, shortcut, destinationURL string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	const query = `

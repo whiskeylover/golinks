@@ -11,6 +11,8 @@ body {
 }
 
 main {
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
   max-width: 64rem;
   min-height: calc(100vh - 8rem);
@@ -116,6 +118,25 @@ button:hover {
   background: #61dbb2;
 }
 
+.danger {
+  background: #df706e;
+}
+
+.danger:hover {
+  background: #f08a87;
+}
+
+.cancel {
+  color: #92a7bb;
+  font-size: 0.85rem;
+}
+
+.confirmation form {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
 .prefix {
   align-self: center;
   color: #53d3a7;
@@ -147,6 +168,14 @@ button:hover {
   font-weight: 700;
 }
 
+.shortcut-with-count {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+
 .destination {
   color: #8493a3;
   overflow: hidden;
@@ -159,29 +188,32 @@ button:hover {
 }
 
 .usage-count {
-  color: #667585;
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.link-actions {
-  display: flex;
-  gap: 0.75rem;
+  background: #15212b;
+  border: 1px solid #263846;
+  border-radius: 999px;
+  color: #91a0af;
+  font-size: 0.68rem;
+  line-height: 1;
+  padding: 0.22rem 0.42rem;
   white-space: nowrap;
 }
 
 footer {
-  margin-top: 4rem;
+  margin-top: auto;
   padding-bottom: 2rem;
+  padding-top: 4rem;
 }
 
 .links-toggle {
-  color: #667585;
-  font-size: 0.75rem;
+  color: #45515e;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
   text-decoration: none;
+  text-transform: lowercase;
 }
 
-.links-toggle:hover {
+.links-toggle:hover,
+.links-toggle:focus-visible {
   color: #a9b8c7;
   text-decoration: underline;
 }
@@ -189,6 +221,13 @@ footer {
 .error {
   background: #271719;
   border-left: 0.25rem solid #df706e;
+  padding: 0.75rem;
+}
+
+.message {
+  background: #101b20;
+  border-left: 0.25rem solid #53d3a7;
+  color: #a9b8c7;
   padding: 0.75rem;
 }
 

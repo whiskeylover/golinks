@@ -27,9 +27,9 @@
       <ul class="links">
         {{range .TopLinks}}
         <li>
-          <a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a>
+          <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
           <span class="destination">{{.DestinationURL}}</span>
-          <span class="link-actions"><span class="usage-count">{{.UseCount}}x</span> <a class="edit" href="/edit/{{.Shortcut}}">Edit</a></span>
+          <a class="edit" href="/edit/{{.Shortcut}}">Edit</a>
         </li>
         {{end}}
       </ul>

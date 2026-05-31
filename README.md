@@ -163,3 +163,52 @@ For the macOS user service:
   -db "$HOME/Library/Application Support/golinks/golinks.db" \
   -output /path/to/backups/golinks-$(date +%F).db
 ```
+
+## Delete a shortcut from the CLI
+
+The web UI intentionally does not advertise shortcut deletion. For
+maintenance tasks, including removing a malformed legacy shortcut, delete an
+exact stored key with:
+
+```bash
+go run ./cmd/golinks list -db ./data/golinks.db
+
+go run ./cmd/golinks delete \
+  -db ./data/golinks.db \
+  -shortcut 'legacy shortcut'
+```
+
+For the Debian Linux service, use `/usr/local/bin/golinks` and the production
+database path:
+
+```bash
+sudo /usr/local/bin/golinks delete \
+  -db /var/lib/golinks/golinks.db \
+  -shortcut 'legacy shortcut'
+```
+
+## Roadmap
+
+Keep future additions lightweight and focused on reducing friction or
+improving reliability.
+
+### Next up
+
+- Scheduled backups with a `systemd` timer.
+- Search for revealed links.
+- A `GET /healthz` endpoint that checks application and database health.
+
+### Useful additions
+
+- A copy button for `http://go/<shortcut>`.
+- A `last_used_at` timestamp for identifying stale links and improving
+  ranking.
+- Favorites for pinning important shortcuts above frequently used links.
+- JSON or CSV import and export for migrations and disaster recovery.
+
+### Shared-service features
+
+- Optional descriptions or tags.
+- An audit history for edits and deletions.
+- Basic create, edit, and delete protection through a shared token or reverse
+  proxy authentication.

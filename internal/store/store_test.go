@@ -125,3 +125,25 @@ func TestStoreGetMissing(t *testing.T) {
 		t.Fatalf("Get() error = %v, want ErrNotFound", err)
 	}
 }
+
+func TestStoreDelete(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if err := s.Upsert(ctx, "docs", "https://example.com/docs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(ctx, "docs"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Get(ctx, "docs"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
+	if err := s.Delete(ctx, "docs"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Delete() error = %v, want ErrNotFound", err)
+	}
+}
