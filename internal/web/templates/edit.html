@@ -9,18 +9,16 @@
 </head>
 <body>
   <main>
-    <header>
-      <a href="/">go/links</a>
-      <h1>Edit go/{{.Shortcut}}</h1>
-    </header>
+    {{template "header"}}
     {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
     <form method="post">
-      <label for="destination_url">Destination URL</label>
-      <input id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required autofocus>
-      <button type="submit">Save link</button>
+      <span class="prefix">go/</span>
+      <input aria-label="Shortcut" class="shortcut-input" id="shortcut" value="{{.Shortcut}}" disabled>
+      <span aria-label="redirects to" class="redirect-arrow" role="img">&rarr;</span>
+      <input aria-label="Destination URL" id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required autofocus>
+      <button type="submit">Save</button>
     </form>
   </main>
 </body>
 </html>
 {{end}}
-

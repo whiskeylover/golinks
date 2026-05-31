@@ -29,10 +29,31 @@ h2 {
 }
 
 h1 {
-  color: #f1f7ff;
   font-size: 2rem;
   letter-spacing: -0.06em;
   margin-bottom: 1.5rem;
+}
+
+.brand {
+  color: #f1f7ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-decoration: none;
+}
+
+.brand-prompt,
+.brand-slash {
+  color: #53d3a7;
+}
+
+.brand-prompt {
+  font-size: 0.85em;
+  margin-right: 0.35rem;
+}
+
+.brand-cursor {
+  color: #53d3a7;
+  font-size: 0.85em;
+  margin-left: 0.18rem;
 }
 
 h2 {
@@ -72,6 +93,12 @@ input:focus {
 
 input::placeholder {
   color: #637283;
+}
+
+input:disabled {
+  background: #101720;
+  color: #8493a3;
+  cursor: not-allowed;
 }
 
 button {

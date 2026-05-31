@@ -82,8 +82,9 @@ func TestSaveEditAndRedirectNestedShortcut(t *testing.T) {
 	edit := httptest.NewRequest(http.MethodGet, "/edit/docs/onboarding", nil)
 	editResponse := httptest.NewRecorder()
 	handler.ServeHTTP(editResponse, edit)
-	if !strings.Contains(editResponse.Body.String(), "https://example.com/start") {
-		t.Fatal("edit response does not include stored URL")
+	editBody := editResponse.Body.String()
+	if !strings.Contains(editBody, "https://example.com/start") || !strings.Contains(editBody, `value="docs/onboarding" disabled`) {
+		t.Fatal("edit response does not include stored URL and disabled shortcut")
 	}
 
 	redirect := httptest.NewRequest(http.MethodGet, "/docs/onboarding", nil)
