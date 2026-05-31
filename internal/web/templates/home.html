@@ -1,0 +1,47 @@
+{{define "home.html"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>go/links</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>go/links</h1>
+    </header>
+    <section>
+      {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+      <form method="post">
+        <span class="prefix">go/</span>
+        <input aria-label="Shortcut" id="shortcut" name="shortcut" value="{{.Shortcut}}" placeholder="docs/onboarding" required autofocus>
+        <span aria-label="redirects to" class="redirect-arrow" role="img">&rarr;</span>
+        <input aria-label="Destination URL" id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required>
+        <button type="submit">Save</button>
+      </form>
+    </section>
+    {{if .ShowLinks}}
+    {{if .TopLinks}}
+    <section>
+      <h2>Top links</h2>
+      <ul class="links">
+        {{range .TopLinks}}
+        <li>
+          <a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a>
+          <span class="destination">{{.DestinationURL}}</span>
+          <span class="link-actions"><span class="usage-count">{{.UseCount}}x</span> <a class="edit" href="/edit/{{.Shortcut}}">Edit</a></span>
+        </li>
+        {{end}}
+      </ul>
+    </section>
+    {{end}}
+    <footer><a class="links-toggle" href="/">Hide links</a></footer>
+    {{else}}
+    <footer><a class="links-toggle" href="/?links=1">Show links</a></footer>
+    {{end}}
+  </main>
+</body>
+</html>
+{{end}}
