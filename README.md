@@ -62,7 +62,7 @@ sudo systemctl stop golinks
 sudo systemctl restart golinks
 systemctl status golinks
 journalctl -u golinks -f
-curl --head http://localhost/
+curl http://localhost/healthz
 ```
 
 The service runs as the unprivileged `golinks` user. Its `systemd` unit grants
@@ -198,6 +198,7 @@ sudo install -m 0600 -o golinks -g golinks \
   /var/lib/golinks/golinks.db
 sudo systemctl start golinks
 systemctl status golinks
+curl http://localhost/healthz
 curl --head http://localhost/your-shortcut
 ```
 
@@ -236,10 +237,6 @@ sudo /usr/local/bin/golinks delete \
 
 Keep future additions lightweight and focused on reducing friction or
 improving reliability.
-
-### Next up
-
-- A `GET /healthz` endpoint that checks application and database health.
 
 ### Useful additions
 

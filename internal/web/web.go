@@ -23,6 +23,7 @@ const topLinksLimit = 10
 const searchLinksLimit = 50
 
 type linkStore interface {
+	Ping(ctx context.Context) error
 	Get(ctx context.Context, shortcut string) (store.Link, error)
 	ListTop(ctx context.Context, limit int) ([]store.Link, error)
 	Search(ctx context.Context, query string, limit int) ([]store.Link, error)
@@ -70,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 		panic(err)
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
+	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /api/links", s.searchLinks)
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("POST /{$}", s.create)
@@ -79,6 +81,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /delete/{shortcut...}", s.delete)
 	mux.HandleFunc("GET /{shortcut...}", s.redirect)
 	return mux
+}
+
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.Ping(r.Context()); err != nil {
+		s.logger.Error("health check failed", "error", err)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintln(w, "unhealthy")
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprintln(w, "ok")
 }
 
 func (s *Server) searchLinks(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +295,7 @@ func normalizeShortcut(value string) (string, error) {
 }
 
 func hasReservedPrefix(shortcut string) bool {
-	for _, reserved := range []string{"api", "delete", "edit", "static"} {
+	for _, reserved := range []string{"api", "delete", "edit", "healthz", "static"} {
 		if shortcut == reserved || strings.HasPrefix(shortcut, reserved+"/") {
 			return true
 		}
