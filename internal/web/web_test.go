@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,13 +16,17 @@ import (
 )
 
 type memoryStore struct {
-	links        map[string]store.Link
-	listTopCalls int
-	listTopLimit int
-	searchCalls  int
-	searchQuery  string
-	searchLimit  int
-	healthErr    error
+	links              map[string]store.Link
+	favoriteCount      int
+	favoriteLimit      int
+	countFavoriteCalls int
+	listFavoriteCalls  int
+	listTopCalls       int
+	listTopLimit       int
+	searchCalls        int
+	searchQuery        string
+	searchLimit        int
+	healthErr          error
 }
 
 func (s *memoryStore) Ping(_ context.Context) error {
@@ -36,11 +41,40 @@ func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error
 	return link, nil
 }
 
+func (s *memoryStore) CountFavorites(_ context.Context) (int, error) {
+	s.countFavoriteCalls++
+	count := 0
+	for _, link := range s.links {
+		if link.IsFavorite {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *memoryStore) ListFavorites(_ context.Context, limit int) ([]store.Link, error) {
+	s.listFavoriteCalls++
+	s.favoriteLimit = limit
+	var links []store.Link
+	for _, link := range s.links {
+		if link.IsFavorite {
+			links = append(links, link)
+		}
+	}
+	if len(links) > limit {
+		links = links[:limit]
+	}
+	return links, nil
+}
+
 func (s *memoryStore) ListTop(_ context.Context, limit int) ([]store.Link, error) {
 	s.listTopCalls++
 	s.listTopLimit = limit
 	var links []store.Link
 	for _, link := range s.links {
+		if link.IsFavorite {
+			continue
+		}
 		links = append(links, link)
 	}
 	if len(links) > limit {
@@ -80,6 +114,16 @@ func (s *memoryStore) Delete(_ context.Context, shortcut string) error {
 		return store.ErrNotFound
 	}
 	delete(s.links, shortcut)
+	return nil
+}
+
+func (s *memoryStore) SetFavorite(_ context.Context, shortcut string, favorite bool) error {
+	link, ok := s.links[shortcut]
+	if !ok {
+		return store.ErrNotFound
+	}
+	link.IsFavorite = favorite
+	s.links[shortcut] = link
 	return nil
 }
 
@@ -203,18 +247,76 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	if linkStore.listTopCalls != 0 {
 		t.Fatalf("ListTop() called %d times for default home", linkStore.listTopCalls)
 	}
+	if linkStore.listFavoriteCalls != 0 {
+		t.Fatalf("ListFavorites() called %d times for default home", linkStore.listFavoriteCalls)
+	}
+	if linkStore.countFavoriteCalls != 0 {
+		t.Fatalf("CountFavorites() called %d times for default home", linkStore.countFavoriteCalls)
+	}
 
 	shown := httptest.NewRecorder()
 	handler.ServeHTTP(shown, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
 	body := shown.Body.String()
-	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") {
+	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) {
 		t.Fatalf("response body = %q", body)
+	}
+	if linkStore.listFavoriteCalls != 1 {
+		t.Fatalf("ListFavorites() called %d times, want 1", linkStore.listFavoriteCalls)
+	}
+	if linkStore.countFavoriteCalls != 1 {
+		t.Fatalf("CountFavorites() called %d times, want 1", linkStore.countFavoriteCalls)
+	}
+	if linkStore.favoriteLimit != 10 {
+		t.Fatalf("ListFavorites() limit = %d, want 10", linkStore.favoriteLimit)
 	}
 	if linkStore.listTopCalls != 1 {
 		t.Fatalf("ListTop() called %d times, want 1", linkStore.listTopCalls)
 	}
 	if linkStore.listTopLimit != 10 {
 		t.Fatalf("ListTop() limit = %d, want 10", linkStore.listTopLimit)
+	}
+}
+
+func TestHomeShowsFavoritesAboveTopLinks(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.links["docs"] = store.Link{Shortcut: "docs", DestinationURL: "https://example.com/docs", UseCount: 9, IsFavorite: true}
+	linkStore.links["calendar"] = store.Link{Shortcut: "calendar", DestinationURL: "https://example.com/calendar", UseCount: 4}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
+	body := response.Body.String()
+	if !strings.Contains(body, "Favorites") || !strings.Contains(body, "Top links") {
+		t.Fatalf("response body = %q", body)
+	}
+	if strings.Index(body, "Favorites") > strings.Index(body, "Top links") {
+		t.Fatalf("favorites were not shown before top links: %q", body)
+	}
+	if !strings.Contains(body, `<span class="row-actions">`) || !strings.Contains(body, `class="edit icon-link"`) || !strings.Contains(body, `aria-label="Edit go/docs"`) {
+		t.Fatalf("favorite row does not include compact icon actions: %q", body)
+	}
+	if !strings.Contains(body, `name="favorite" type="hidden" value="0"`) || !strings.Contains(body, `class="pin-button is-pinned"`) {
+		t.Fatalf("favorite row does not include unpin button: %q", body)
+	}
+	if !strings.Contains(body, `name="favorite" type="hidden" value="1"`) || !strings.Contains(body, "go/calendar") {
+		t.Fatalf("top row does not include pin button: %q", body)
+	}
+}
+
+func TestHomeShowsFavoriteOverflowHint(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	for i := 0; i < 12; i++ {
+		shortcut := fmt.Sprintf("fav-%02d", i)
+		linkStore.links[shortcut] = store.Link{Shortcut: shortcut, DestinationURL: "https://example.com", IsFavorite: true}
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
+	body := response.Body.String()
+	if strings.Count(body, `class="pin-button is-pinned"`) != 10 {
+		t.Fatalf("favorite rows rendered = %d, want 10, body = %q", strings.Count(body, `class="pin-button is-pinned"`), body)
+	}
+	if !strings.Contains(body, "+2 more. Search to find.") {
+		t.Fatalf("response body = %q", body)
 	}
 }
 
@@ -238,7 +340,7 @@ func TestFaviconIsLinkedAndServed(t *testing.T) {
 
 func TestSearchLinks(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
-	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3}
+	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3, IsFavorite: true}
 	linkStore.links["calendar"] = store.Link{Shortcut: "calendar", DestinationURL: "https://example.com/calendar", UseCount: 1}
 
 	response := httptest.NewRecorder()
@@ -250,7 +352,7 @@ func TestSearchLinks(t *testing.T) {
 		t.Fatalf("content type = %q", contentType)
 	}
 	body := response.Body.String()
-	if !strings.Contains(body, `"shortcut":"docs/onboarding"`) || strings.Contains(body, `"calendar"`) {
+	if !strings.Contains(body, `"shortcut":"docs/onboarding"`) || !strings.Contains(body, `"is_favorite":true`) || strings.Contains(body, `"calendar"`) {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.searchCalls != 1 || linkStore.searchQuery != "board" || linkStore.searchLimit != 50 {
@@ -263,8 +365,56 @@ func TestSearchScriptCachesTopLinks(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
 	body := response.Body.String()
-	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") {
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "link.is_favorite") {
 		t.Fatalf("search script = %q", body)
+	}
+}
+
+func TestFavoriteRoutePinsAndUnpins(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs"}
+
+	pinForm := url.Values{"favorite": {"1"}}
+	pin := httptest.NewRequest(http.MethodPost, "/favorite/docs/onboarding", strings.NewReader(pinForm.Encode()))
+	pin.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	pinResponse := httptest.NewRecorder()
+	handler.ServeHTTP(pinResponse, pin)
+	if pinResponse.Code != http.StatusSeeOther {
+		t.Fatalf("pin status = %d", pinResponse.Code)
+	}
+	if location := pinResponse.Header().Get("Location"); location != "/?links=1" {
+		t.Fatalf("pin location = %q", location)
+	}
+	if !linkStore.links["docs/onboarding"].IsFavorite {
+		t.Fatal("link was not pinned")
+	}
+
+	unpinForm := url.Values{"favorite": {"0"}}
+	unpin := httptest.NewRequest(http.MethodPost, "/favorite/docs/onboarding", strings.NewReader(unpinForm.Encode()))
+	unpin.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	unpinResponse := httptest.NewRecorder()
+	handler.ServeHTTP(unpinResponse, unpin)
+	if unpinResponse.Code != http.StatusSeeOther {
+		t.Fatalf("unpin status = %d", unpinResponse.Code)
+	}
+	if linkStore.links["docs/onboarding"].IsFavorite {
+		t.Fatal("link was not unpinned")
+	}
+}
+
+func TestFavoriteRouteRejectsMissingAndInvalidShortcut(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	form := url.Values{"favorite": {"1"}}
+	for _, path := range []string{"/favorite/missing", "/favorite/has%20space"} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("status = %d", response.Code)
+			}
+		})
 	}
 }
 
@@ -343,7 +493,7 @@ func TestCreateRejectsInvalidValuesAndPreservesFields(t *testing.T) {
 }
 
 func TestCreateRejectsInvalidShortcutCharacters(t *testing.T) {
-	for _, shortcut := range []string{"has space", "has@symbol", "api/links", "delete/admin", "healthz"} {
+	for _, shortcut := range []string{"has space", "has@symbol", "api/links", "delete/admin", "favorite/docs", "healthz"} {
 		t.Run(shortcut, func(t *testing.T) {
 			handler, linkStore := newTestHandler(t)
 			form := url.Values{

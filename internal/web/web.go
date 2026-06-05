@@ -20,15 +20,19 @@ import (
 var assets embed.FS
 
 const topLinksLimit = 10
+const favoriteLinksLimit = 10
 const searchLinksLimit = 50
 
 type linkStore interface {
 	Ping(ctx context.Context) error
 	Get(ctx context.Context, shortcut string) (store.Link, error)
+	CountFavorites(ctx context.Context) (int, error)
+	ListFavorites(ctx context.Context, limit int) ([]store.Link, error)
 	ListTop(ctx context.Context, limit int) ([]store.Link, error)
 	Search(ctx context.Context, query string, limit int) ([]store.Link, error)
 	RecordUse(ctx context.Context, shortcut string) error
 	Delete(ctx context.Context, shortcut string) error
+	SetFavorite(ctx context.Context, shortcut string, favorite bool) error
 	Upsert(ctx context.Context, shortcut, destinationURL string) error
 }
 
@@ -39,6 +43,8 @@ type Server struct {
 }
 
 type pageData struct {
+	FavoriteLinks  []store.Link
+	FavoriteMore   int
 	TopLinks       []store.Link
 	ShowLinks      bool
 	Shortcut       string
@@ -51,6 +57,7 @@ type searchLink struct {
 	Shortcut       string `json:"shortcut"`
 	DestinationURL string `json:"destination_url"`
 	UseCount       int64  `json:"use_count"`
+	IsFavorite     bool   `json:"is_favorite"`
 }
 
 func New(linkStore linkStore, logger *slog.Logger) (*Server, error) {
@@ -79,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /edit/{shortcut...}", s.save)
 	mux.HandleFunc("GET /delete/{shortcut...}", s.confirmDelete)
 	mux.HandleFunc("POST /delete/{shortcut...}", s.delete)
+	mux.HandleFunc("POST /favorite/{shortcut...}", s.favorite)
 	mux.HandleFunc("GET /{shortcut...}", s.redirect)
 	return mux
 }
@@ -107,6 +115,7 @@ func (s *Server) searchLinks(w http.ResponseWriter, r *http.Request) {
 			Shortcut:       link.Shortcut,
 			DestinationURL: link.DestinationURL,
 			UseCount:       link.UseCount,
+			IsFavorite:     link.IsFavorite,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -146,10 +155,24 @@ func (s *Server) renderHome(w http.ResponseWriter, r *http.Request, data pageDat
 		return
 	}
 
+	favoriteCount, err := s.store.CountFavorites(r.Context())
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	favorites, err := s.store.ListFavorites(r.Context(), favoriteLinksLimit)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	links, err := s.store.ListTop(r.Context(), topLinksLimit)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
+	}
+	data.FavoriteLinks = favorites
+	if favoriteCount > len(favorites) {
+		data.FavoriteMore = favoriteCount - len(favorites)
 	}
 	data.TopLinks = links
 	s.renderStatus(w, r, "home.html", data, status)
@@ -236,6 +259,32 @@ func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func (s *Server) favorite(w http.ResponseWriter, r *http.Request) {
+	shortcut, err := normalizeShortcut(r.PathValue("shortcut"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var favorite bool
+	switch r.FormValue("favorite") {
+	case "1":
+		favorite = true
+	case "0":
+		favorite = false
+	default:
+		http.Error(w, "favorite must be 0 or 1", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.SetFavorite(r.Context(), shortcut, favorite); errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	} else if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/?links=1", http.StatusSeeOther)
+}
+
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	shortcut, err := normalizeShortcut(r.PathValue("shortcut"))
 	if err != nil {
@@ -295,7 +344,7 @@ func normalizeShortcut(value string) (string, error) {
 }
 
 func hasReservedPrefix(shortcut string) bool {
-	for _, reserved := range []string{"api", "delete", "edit", "healthz", "static"} {
+	for _, reserved := range []string{"api", "delete", "edit", "favorite", "healthz", "static"} {
 		if shortcut == reserved || strings.HasPrefix(shortcut, reserved+"/") {
 			return true
 		}

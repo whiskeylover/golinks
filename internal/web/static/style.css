@@ -26,7 +26,8 @@ section {
 }
 
 h1,
-h2 {
+h2,
+h3 {
   line-height: 1.15;
 }
 
@@ -62,6 +63,15 @@ h2 {
   color: #91a0af;
   font-size: 0.75rem;
   letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h3 {
+  color: #5f7183;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.35rem;
+  margin-top: 1.25rem;
   text-transform: uppercase;
 }
 
@@ -208,7 +218,7 @@ button:hover {
   border-top: 1px solid #1e2b38;
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: minmax(10rem, 1fr) minmax(15rem, 2fr) auto;
+  grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr) auto;
   padding: 0.75rem 0;
 }
 
@@ -227,13 +237,68 @@ button:hover {
 
 .destination {
   color: #8493a3;
+  min-width: 0;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .edit {
   color: #92a7bb;
+}
+
+.row-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.pin-form {
+  background: transparent;
+  border: 0;
+  display: inline;
+  padding: 0;
+}
+
+.pin-button,
+.icon-link {
+  align-items: center;
+  background: transparent;
+  color: #45515e;
+  display: inline-flex;
+  justify-content: center;
+  line-height: 1;
+  padding: 0.2rem;
+  text-decoration: none;
+}
+
+.pin-button svg,
+.icon-link svg {
+  display: block;
+  fill: none;
+  height: 0.9rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 0.9rem;
+}
+
+.pin-button svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+.pin-button:hover,
+.pin-button:focus-visible,
+.pin-button.is-pinned,
+.icon-link:hover,
+.icon-link:focus-visible {
+  background: transparent;
+  color: #53d3a7;
 }
 
 .usage-count {
@@ -306,5 +371,30 @@ a {
 
   .search-box input {
     width: 10rem;
+  }
+
+  .links-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .links li {
+    align-items: center;
+    gap: 0.45rem 0.75rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .shortcut-with-count {
+    grid-column: 1 / -1;
+  }
+
+  .destination {
+    grid-column: 1;
+    max-width: 100%;
+  }
+
+  .row-actions {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
