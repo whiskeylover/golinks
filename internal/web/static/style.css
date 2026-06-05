@@ -320,6 +320,66 @@ button:hover {
   white-space: nowrap;
 }
 
+.qr-modal {
+  align-items: center;
+  background: rgb(3 7 12 / 78%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1.25rem;
+  position: fixed;
+  z-index: 10;
+}
+
+.qr-modal[hidden] {
+  display: none;
+}
+
+.qr-card {
+  background: #0e141c;
+  border: 1px solid #263846;
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 4rem rgb(0 0 0 / 35%);
+  max-width: 22rem;
+  padding: 1rem;
+  position: relative;
+  text-align: center;
+  width: 100%;
+}
+
+.qr-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.03em;
+  margin: 0.25rem 1.75rem 1rem;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+
+.qr-close {
+  background: transparent;
+  color: #8493a3;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  position: absolute;
+  right: 0.55rem;
+  top: 0.55rem;
+}
+
+.qr-code {
+  background: #f7fbff;
+  border-radius: 0.45rem;
+  display: inline-block;
+  padding: 0.75rem;
+}
+
+.qr-code svg {
+  display: block;
+  height: auto;
+  max-width: 14rem;
+  width: 100%;
+}
+
 footer {
   margin-top: auto;
   padding-bottom: 2rem;

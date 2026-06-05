@@ -263,7 +263,7 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	shown := httptest.NewRecorder()
 	handler.ServeHTTP(shown, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
 	body := shown.Body.String()
-	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) || !strings.Contains(body, `data-copy-path="/docs"`) {
+	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) || !strings.Contains(body, `data-copy-path="/docs"`) || !strings.Contains(body, `data-qr-path="/docs"`) || !strings.Contains(body, `/static/qrcode-generator.js`) {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.listFavoriteCalls != 1 {
@@ -300,11 +300,11 @@ func TestHomeShowsFavoritesAboveTopLinks(t *testing.T) {
 	if !strings.Contains(body, `<span class="row-actions">`) || !strings.Contains(body, `class="edit icon-link"`) || !strings.Contains(body, `aria-label="Edit go/docs"`) {
 		t.Fatalf("favorite row does not include compact icon actions: %q", body)
 	}
-	if !strings.Contains(body, `name="favorite" type="hidden" value="0"`) || !strings.Contains(body, `class="pin-button is-pinned"`) {
-		t.Fatalf("favorite row does not include unpin button: %q", body)
+	if !strings.Contains(body, `name="favorite" type="hidden" value="0"`) || !strings.Contains(body, `class="pin-button is-pinned"`) || !strings.Contains(body, `aria-label="Unfavorite go/docs"`) {
+		t.Fatalf("favorite row does not include unfavorite button: %q", body)
 	}
-	if !strings.Contains(body, `name="favorite" type="hidden" value="1"`) || !strings.Contains(body, "go/calendar") {
-		t.Fatalf("top row does not include pin button: %q", body)
+	if !strings.Contains(body, `name="favorite" type="hidden" value="1"`) || !strings.Contains(body, `aria-label="Favorite go/calendar"`) {
+		t.Fatalf("top row does not include favorite button: %q", body)
 	}
 }
 
@@ -372,8 +372,20 @@ func TestSearchScriptCachesTopLinks(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
 	body := response.Body.String()
-	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") {
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "Unfavorite") || !strings.Contains(body, "Favorite") || !strings.Contains(body, "data-qr-path") || !strings.Contains(body, "new URL(button.dataset.qrPath, window.location.origin).href") || !strings.Contains(body, "`go${button.dataset.qrPath}`") || !strings.Contains(body, "qrcode(0, \"M\")") || !strings.Contains(body, "title.textContent = label") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") || strings.Contains(body, "data-qr-url") {
 		t.Fatalf("search script = %q", body)
+	}
+}
+
+func TestQRCodeGeneratorIsServed(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/qrcode-generator.js", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "QR Code Generator for JavaScript") || !strings.Contains(response.Body.String(), "MIT license") {
+		t.Fatalf("QR script body = %q", response.Body.String())
 	}
 }
 
