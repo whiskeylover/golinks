@@ -28,10 +28,19 @@
 
     const items = links.map((link) => {
       const path = shortcutPath(link.shortcut);
+      const favoriteValue = link.is_favorite ? "0" : "1";
+      const favoriteLabel = link.is_favorite ? "Unpin" : "Pin";
+      const favoriteClass = link.is_favorite ? " is-pinned" : "";
       return `<li>
         <span class="shortcut-with-count"><a class="shortcut" href="/${path}">go/${escapeHTML(link.shortcut)}</a><span class="usage-count">${escapeHTML(link.use_count)}</span></span>
         <span class="destination">${escapeHTML(link.destination_url)}</span>
-        <a class="edit" href="/edit/${path}">Edit</a>
+        <span class="row-actions">
+          <form class="pin-form" action="/favorite/${path}" method="post">
+            <input name="favorite" type="hidden" value="${favoriteValue}">
+            <button aria-label="${favoriteLabel} go/${escapeHTML(link.shortcut)}" class="pin-button${favoriteClass}" title="${favoriteLabel}" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 1h6l-1 5 3 3v1H9l-1 5H7l-1-5H2V9l3-3-1-5Z"></path></svg></button>
+          </form>
+          <a aria-label="Edit go/${escapeHTML(link.shortcut)}" class="edit icon-link" href="/edit/${path}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+        </span>
       </li>`;
     }).join("");
     results.innerHTML = `<ul class="links">${items}</ul>`;

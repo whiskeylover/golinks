@@ -23,6 +23,7 @@ type Link struct {
 	Shortcut       string
 	DestinationURL string
 	UseCount       int64
+	IsFavorite     bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -129,7 +130,7 @@ func (s *Store) applyMigration(ctx context.Context, name string) error {
 
 func (s *Store) Get(ctx context.Context, shortcut string) (Link, error) {
 	const query = `
-SELECT shortcut, destination_url, use_count, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, created_at, updated_at
 FROM links
 WHERE shortcut = ?`
 
@@ -145,7 +146,7 @@ WHERE shortcut = ?`
 
 func (s *Store) List(ctx context.Context) ([]Link, error) {
 	const query = `
-SELECT shortcut, destination_url, use_count, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, created_at, updated_at
 FROM links
 ORDER BY shortcut`
 
@@ -169,13 +170,53 @@ ORDER BY shortcut`
 	return links, nil
 }
 
+func (s *Store) CountFavorites(ctx context.Context) (int, error) {
+	var count int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM links WHERE is_favorite = 1").Scan(&count); err != nil {
+		return 0, fmt.Errorf("count favorite links: %w", err)
+	}
+	return count, nil
+}
+
+func (s *Store) ListFavorites(ctx context.Context, limit int) ([]Link, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	const query = `
+SELECT shortcut, destination_url, use_count, is_favorite, created_at, updated_at
+FROM links
+WHERE is_favorite = 1
+ORDER BY shortcut
+LIMIT ?`
+
+	rows, err := s.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list favorite links: %w", err)
+	}
+	defer rows.Close()
+
+	var links []Link
+	for rows.Next() {
+		link, err := scanLink(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan favorite link: %w", err)
+		}
+		links = append(links, link)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list favorite links: %w", err)
+	}
+	return links, nil
+}
+
 func (s *Store) ListTop(ctx context.Context, limit int) ([]Link, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	const query = `
-SELECT shortcut, destination_url, use_count, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, created_at, updated_at
 FROM links
+WHERE is_favorite = 0
 ORDER BY use_count DESC, shortcut
 LIMIT ?`
 
@@ -205,7 +246,7 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]Link, er
 		return nil, nil
 	}
 	const statement = `
-SELECT shortcut, destination_url, use_count, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, created_at, updated_at
 FROM links
 WHERE shortcut LIKE ? ESCAPE '\'
 ORDER BY use_count DESC, shortcut
@@ -267,6 +308,21 @@ func (s *Store) Delete(ctx context.Context, shortcut string) error {
 	return nil
 }
 
+func (s *Store) SetFavorite(ctx context.Context, shortcut string, favorite bool) error {
+	result, err := s.db.ExecContext(ctx, "UPDATE links SET is_favorite = ?, updated_at = ? WHERE shortcut = ?", favorite, time.Now().UTC().Format(time.RFC3339Nano), shortcut)
+	if err != nil {
+		return fmt.Errorf("set favorite for link %q: %w", shortcut, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set favorite for link %q: %w", shortcut, err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) Upsert(ctx context.Context, shortcut, destinationURL string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	const query = `
@@ -309,7 +365,7 @@ type scanner interface {
 func scanLink(s scanner) (Link, error) {
 	var link Link
 	var createdAt, updatedAt string
-	if err := s.Scan(&link.Shortcut, &link.DestinationURL, &link.UseCount, &createdAt, &updatedAt); err != nil {
+	if err := s.Scan(&link.Shortcut, &link.DestinationURL, &link.UseCount, &link.IsFavorite, &createdAt, &updatedAt); err != nil {
 		return Link{}, err
 	}
 

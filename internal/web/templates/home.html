@@ -25,7 +25,7 @@
     {{if .ShowLinks}}
     <section>
       <div class="links-heading">
-        <h2>Top links</h2>
+        <h2>Links</h2>
         <label class="search-box">
           <span class="visually-hidden">Search links</span>
           <svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4"></circle><path d="m10 10 4 4"></path></svg>
@@ -33,18 +33,49 @@
         </label>
       </div>
       <div data-link-results>
+      {{if .FavoriteLinks}}
+      <h3>Favorites</h3>
+      <ul class="links">
+        {{range .FavoriteLinks}}
+        <li>
+          <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
+          <span class="destination">{{.DestinationURL}}</span>
+          <span class="row-actions">
+            <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
+              <input name="favorite" type="hidden" value="0">
+              <button aria-label="Unpin go/{{.Shortcut}}" class="pin-button is-pinned" title="Unpin" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 1h6l-1 5 3 3v1H9l-1 5H7l-1-5H2V9l3-3-1-5Z"></path></svg></button>
+            </form>
+            <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+          </span>
+        </li>
+        {{end}}
+      </ul>
+      {{if .FavoriteMore}}
+      <p class="empty-links">+{{.FavoriteMore}} more. Search to find.</p>
+      {{end}}
+      {{end}}
       {{if .TopLinks}}
+      <h3>Top links</h3>
       <ul class="links">
         {{range .TopLinks}}
         <li>
           <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
           <span class="destination">{{.DestinationURL}}</span>
-          <a class="edit" href="/edit/{{.Shortcut}}">Edit</a>
+          <span class="row-actions">
+            <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
+              <input name="favorite" type="hidden" value="1">
+              <button aria-label="Pin go/{{.Shortcut}}" class="pin-button" title="Pin" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 1h6l-1 5 3 3v1H9l-1 5H7l-1-5H2V9l3-3-1-5Z"></path></svg></button>
+            </form>
+            <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+          </span>
         </li>
         {{end}}
       </ul>
-      {{else}}
+      {{else if not .FavoriteLinks}}
       <p class="empty-links">No links yet.</p>
+      {{end}}
+      {{if and .FavoriteLinks (not .TopLinks)}}
+      <p class="empty-links">No unpinned top links yet.</p>
       {{end}}
       </div>
     </section>

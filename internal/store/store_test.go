@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,9 @@ func TestStoreUpsertGetListAndBackup(t *testing.T) {
 	}
 	if link.UseCount != 2 {
 		t.Fatalf("use count = %d, want 2", link.UseCount)
+	}
+	if link.IsFavorite {
+		t.Fatal("new link is favorite by default")
 	}
 
 	links, err := s.List(ctx)
@@ -94,6 +98,55 @@ func TestStorePing(t *testing.T) {
 	}
 }
 
+func TestStoreMigratesExistingLinksToNonFavorite(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "golinks.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE schema_migrations (
+	name TEXT PRIMARY KEY,
+	applied_at TEXT NOT NULL
+);
+CREATE TABLE links (
+	shortcut TEXT PRIMARY KEY,
+	destination_url TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	use_count INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO schema_migrations (name, applied_at) VALUES
+	('001_create_links.sql', '2026-01-01T00:00:00Z'),
+	('002_add_use_count.sql', '2026-01-01T00:00:00Z');
+INSERT INTO links (shortcut, destination_url, use_count, created_at, updated_at)
+VALUES ('docs', 'https://example.com/docs', 7, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	link, err := s.Get(ctx, "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.IsFavorite {
+		t.Fatal("migrated link is favorite by default")
+	}
+	if link.UseCount != 7 {
+		t.Fatalf("use count = %d, want 7", link.UseCount)
+	}
+}
+
 func TestStoreListTopOrdersByUsage(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
@@ -123,6 +176,70 @@ func TestStoreListTopOrdersByUsage(t *testing.T) {
 	}
 	if len(links) != 2 || links[0].Shortcut != "gamma" || links[1].Shortcut != "beta" {
 		t.Fatalf("top links = %#v", links)
+	}
+}
+
+func TestStoreFavorites(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	for shortcut, destination := range map[string]string{
+		"alpha": "https://example.com/alpha",
+		"beta":  "https://example.com/beta",
+		"gamma": "https://example.com/gamma",
+	} {
+		if err := s.Upsert(ctx, shortcut, destination); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, shortcut := range []string{"gamma", "beta", "gamma"} {
+		if err := s.RecordUse(ctx, shortcut); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetFavorite(ctx, "gamma", true); err != nil {
+		t.Fatal(err)
+	}
+
+	favoriteCount, err := s.CountFavorites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if favoriteCount != 1 {
+		t.Fatalf("favorite count = %d, want 1", favoriteCount)
+	}
+	favorites, err := s.ListFavorites(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(favorites) != 1 || favorites[0].Shortcut != "gamma" || !favorites[0].IsFavorite {
+		t.Fatalf("favorites = %#v", favorites)
+	}
+
+	topLinks, err := s.ListTop(ctx, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(topLinks) != 2 || topLinks[0].Shortcut != "beta" || topLinks[1].Shortcut != "alpha" {
+		t.Fatalf("top links = %#v", topLinks)
+	}
+
+	if err := s.SetFavorite(ctx, "gamma", false); err != nil {
+		t.Fatal(err)
+	}
+	link, err := s.Get(ctx, "gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.IsFavorite {
+		t.Fatal("link remained favorite after unpin")
+	}
+	if err := s.SetFavorite(ctx, "missing", true); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetFavorite() error = %v, want ErrNotFound", err)
 	}
 }
 
