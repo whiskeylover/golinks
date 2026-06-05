@@ -154,12 +154,19 @@ periodically.
 
 ### Copy production backups to another host
 
-For a NAS, homelab server, or other backup host, first make sure the
-destination exists and SSH key auth works:
+For a NAS, homelab server, or other backup host, create the destination once.
+If `/srv` requires elevated permissions, run:
 
 ```bash
-ssh backup-host 'mkdir -p /srv/backups/golinks'
-ssh backup-host 'true'
+ssh -t backup-host 'sudo mkdir -p /srv/backups/golinks && sudo chown $USER:$USER /srv/backups/golinks'
+```
+
+The local backup directory is protected, so the sync usually runs from root's
+crontab on the golinks host. Make sure root can SSH to the backup host without
+prompting:
+
+```bash
+sudo ssh backup-host 'true'
 ```
 
 Then add a cron job on the golinks host:
@@ -168,11 +175,17 @@ Then add a cron job on the golinks host:
 30 4 * * * rsync -a --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/
 ```
 
+Add it to root's crontab without replacing existing cron entries:
+
+```bash
+(sudo crontab -l 2>/dev/null; echo '30 4 * * * rsync -a --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/') | sudo crontab -
+```
+
 This copies any new local backup files to `backup-host` every day at `04:30`.
 `--ignore-existing` avoids rewriting backups that were already copied.
 
-If cron runs as root, configure root's SSH key for `backup-host`. If cron
-runs as your login user, make sure that user can read `/var/backups/golinks`.
+If you prefer running cron as your login user, grant that user read access to
+`/var/backups/golinks` and the backup files first.
 
 ### Debian Linux production restore
 
