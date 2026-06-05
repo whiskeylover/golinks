@@ -7,6 +7,7 @@
   <title>go/links</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/qrcode-generator.js"></script>
   <script defer src="/static/search.js"></script>
 </head>
 <body>
@@ -43,9 +44,10 @@
           <span class="row-actions">
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="0">
-              <button aria-label="Unpin go/{{.Shortcut}}" class="pin-button is-pinned" title="Unpin" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 1h6l-1 5 3 3v1H9l-1 5H7l-1-5H2V9l3-3-1-5Z"></path></svg></button>
+              <button aria-label="Unfavorite go/{{.Shortcut}}" class="pin-button is-pinned" title="Unfavorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
             </form>
             <button aria-label="Copy go/{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
+            <button aria-label="QR code for go/{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
             <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
           </span>
         </li>
@@ -65,9 +67,10 @@
           <span class="row-actions">
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="1">
-              <button aria-label="Pin go/{{.Shortcut}}" class="pin-button" title="Pin" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 1h6l-1 5 3 3v1H9l-1 5H7l-1-5H2V9l3-3-1-5Z"></path></svg></button>
+              <button aria-label="Favorite go/{{.Shortcut}}" class="pin-button" title="Favorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
             </form>
             <button aria-label="Copy go/{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
+            <button aria-label="QR code for go/{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
             <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
           </span>
         </li>
