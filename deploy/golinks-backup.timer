@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily go/links database backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=golinks-backup.service
+
+[Install]
+WantedBy=timers.target
+

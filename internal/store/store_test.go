@@ -113,6 +113,39 @@ func TestStoreListTopOrdersByUsage(t *testing.T) {
 	}
 }
 
+func TestStoreSearchesShortcutLiterally(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	for shortcut, destination := range map[string]string{
+		"docs/onboarding": "https://example.com/onboarding",
+		"docs/100%":       "https://example.com/percent",
+		"docs/a_b":        "https://example.com/underscore",
+	} {
+		if err := s.Upsert(ctx, shortcut, destination); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for query, want := range map[string]string{
+		"board": "docs/onboarding",
+		"%":     "docs/100%",
+		"_":     "docs/a_b",
+	} {
+		links, err := s.Search(ctx, query, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(links) != 1 || links[0].Shortcut != want {
+			t.Fatalf("Search(%q) = %#v, want %q", query, links, want)
+		}
+	}
+}
+
 func TestStoreGetMissing(t *testing.T) {
 	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "golinks.db"))
 	if err != nil {

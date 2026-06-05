@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>go/links</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/search.js"></script>
 </head>
 <body>
   <main>
@@ -21,9 +22,17 @@
       </form>
     </section>
     {{if .ShowLinks}}
-    {{if .TopLinks}}
     <section>
-      <h2>Top links</h2>
+      <div class="links-heading">
+        <h2>Top links</h2>
+        <label class="search-box">
+          <span class="visually-hidden">Search links</span>
+          <svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4"></circle><path d="m10 10 4 4"></path></svg>
+          <input data-link-search placeholder="Search" type="search">
+        </label>
+      </div>
+      <div data-link-results>
+      {{if .TopLinks}}
       <ul class="links">
         {{range .TopLinks}}
         <li>
@@ -33,8 +42,11 @@
         </li>
         {{end}}
       </ul>
+      {{else}}
+      <p class="empty-links">No links yet.</p>
+      {{end}}
+      </div>
     </section>
-    {{end}}
     <footer><a class="links-toggle" href="/">Hide links</a></footer>
     {{else}}
     <footer><a class="links-toggle" href="/?links=1">Show links</a></footer>

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -19,10 +20,12 @@ import (
 var assets embed.FS
 
 const topLinksLimit = 10
+const searchLinksLimit = 50
 
 type linkStore interface {
 	Get(ctx context.Context, shortcut string) (store.Link, error)
 	ListTop(ctx context.Context, limit int) ([]store.Link, error)
+	Search(ctx context.Context, query string, limit int) ([]store.Link, error)
 	RecordUse(ctx context.Context, shortcut string) error
 	Delete(ctx context.Context, shortcut string) error
 	Upsert(ctx context.Context, shortcut, destinationURL string) error
@@ -43,6 +46,12 @@ type pageData struct {
 	Message        string
 }
 
+type searchLink struct {
+	Shortcut       string `json:"shortcut"`
+	DestinationURL string `json:"destination_url"`
+	UseCount       int64  `json:"use_count"`
+}
+
 func New(linkStore linkStore, logger *slog.Logger) (*Server, error) {
 	templates, err := template.ParseFS(assets, "templates/*.html")
 	if err != nil {
@@ -61,6 +70,7 @@ func (s *Server) Handler() http.Handler {
 		panic(err)
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
+	mux.HandleFunc("GET /api/links", s.searchLinks)
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("POST /{$}", s.create)
 	mux.HandleFunc("GET /edit/{shortcut...}", s.edit)
@@ -69,6 +79,26 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /delete/{shortcut...}", s.delete)
 	mux.HandleFunc("GET /{shortcut...}", s.redirect)
 	return mux
+}
+
+func (s *Server) searchLinks(w http.ResponseWriter, r *http.Request) {
+	links, err := s.store.Search(r.Context(), r.URL.Query().Get("q"), searchLinksLimit)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	results := make([]searchLink, 0, len(links))
+	for _, link := range links {
+		results = append(results, searchLink{
+			Shortcut:       link.Shortcut,
+			DestinationURL: link.DestinationURL,
+			UseCount:       link.UseCount,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		s.logger.Error("encode searched links", "error", err)
+	}
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +281,7 @@ func normalizeShortcut(value string) (string, error) {
 }
 
 func hasReservedPrefix(shortcut string) bool {
-	for _, reserved := range []string{"delete", "edit", "static"} {
+	for _, reserved := range []string{"api", "delete", "edit", "static"} {
 		if shortcut == reserved || strings.HasPrefix(shortcut, reserved+"/") {
 			return true
 		}

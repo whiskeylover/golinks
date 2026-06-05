@@ -154,6 +154,55 @@ button:hover {
   padding: 0;
 }
 
+.links-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.links-heading h2 {
+  margin-bottom: 0.5rem;
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-box svg {
+  fill: none;
+  height: 0.85rem;
+  left: 0.55rem;
+  position: absolute;
+  stroke: #667585;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.85rem;
+}
+
+.search-box input {
+  font-size: 0.75rem;
+  min-width: 0;
+  padding: 0.35rem 0.55rem 0.35rem 1.7rem;
+  width: 10rem;
+}
+
+.visually-hidden {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.empty-links {
+  color: #667585;
+  font-size: 0.85rem;
+}
+
 .links li {
   align-items: baseline;
   border-top: 1px solid #1e2b38;
@@ -253,5 +302,9 @@ a {
   input {
     min-width: 0;
     width: 100%;
+  }
+
+  .search-box input {
+    width: 10rem;
   }
 }

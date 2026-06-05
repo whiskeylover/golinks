@@ -120,14 +120,28 @@ go run ./cmd/golinks serve -addr :8081 -db ./backups/golinks-2026-05-30.db
 
 ### Debian Linux production backup
 
-The production database lives at `/var/lib/golinks/golinks.db`. Create a
-backup directory once:
+The Debian installer enables a daily `systemd` timer:
 
 ```bash
-sudo mkdir -p /var/backups/golinks
+systemctl list-timers golinks-backup.timer
+systemctl status golinks-backup.timer
+journalctl -u golinks-backup.service
 ```
 
-Create a consistent online backup while the service remains running:
+The timer runs once per day around `03:15`, with a small randomized delay. If
+the host is powered off at the scheduled time, `Persistent=true` makes systemd
+run the missed backup after the host comes back online.
+
+Backups are written to `/var/backups/golinks` as timestamped SQLite files.
+After each successful scheduled backup, files older than 30 days are deleted
+from that local backup directory. Trigger a backup immediately with:
+
+```bash
+sudo systemctl start golinks-backup.service
+```
+
+You can also create a consistent online backup manually while the service
+remains running:
 
 ```bash
 sudo /usr/local/bin/golinks backup \
@@ -136,11 +150,29 @@ sudo /usr/local/bin/golinks backup \
 ```
 
 Copy the resulting files to another machine, NAS, or cloud bucket
-periodically. For example:
+periodically.
+
+### Copy production backups to another host
+
+For a NAS, homelab server, or other backup host, first make sure the
+destination exists and SSH key auth works:
 
 ```bash
-scp /var/backups/golinks/*.db user@backup-host:/path/to/golinks/
+ssh backup-host 'mkdir -p /srv/backups/golinks'
+ssh backup-host 'true'
 ```
+
+Then add a cron job on the golinks host:
+
+```cron
+30 4 * * * rsync -a --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/
+```
+
+This copies any new local backup files to `backup-host` every day at `04:30`.
+`--ignore-existing` avoids rewriting backups that were already copied.
+
+If cron runs as root, configure root's SSH key for `backup-host`. If cron
+runs as your login user, make sure that user can read `/var/backups/golinks`.
 
 ### Debian Linux production restore
 
@@ -194,8 +226,6 @@ improving reliability.
 
 ### Next up
 
-- Scheduled backups with a `systemd` timer.
-- Search for revealed links.
 - A `GET /healthz` endpoint that checks application and database health.
 
 ### Useful additions

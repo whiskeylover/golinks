@@ -185,6 +185,44 @@ LIMIT ?`
 	return links, nil
 }
 
+func (s *Store) Search(ctx context.Context, query string, limit int) ([]Link, error) {
+	query = strings.TrimSpace(query)
+	if query == "" || limit <= 0 {
+		return nil, nil
+	}
+	const statement = `
+SELECT shortcut, destination_url, use_count, created_at, updated_at
+FROM links
+WHERE shortcut LIKE ? ESCAPE '\'
+ORDER BY use_count DESC, shortcut
+LIMIT ?`
+
+	pattern := "%" + escapeLike(query) + "%"
+	rows, err := s.db.QueryContext(ctx, statement, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search links: %w", err)
+	}
+	defer rows.Close()
+
+	var links []Link
+	for rows.Next() {
+		link, err := scanLink(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan searched link: %w", err)
+		}
+		links = append(links, link)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("search links: %w", err)
+	}
+	return links, nil
+}
+
+func escapeLike(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(value)
+}
+
 func (s *Store) RecordUse(ctx context.Context, shortcut string) error {
 	result, err := s.db.ExecContext(ctx, "UPDATE links SET use_count = use_count + 1 WHERE shortcut = ?", shortcut)
 	if err != nil {

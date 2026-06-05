@@ -1,0 +1,16 @@
+[Unit]
+Description=Back up go/links database
+
+[Service]
+Type=oneshot
+User=golinks
+Group=golinks
+UMask=0077
+ExecStart=/bin/sh -c 'exec /usr/local/bin/golinks backup -db /var/lib/golinks/golinks.db -output "/var/backups/golinks/golinks-$(date +%%F-%%H%%M%%S).db"'
+ExecStartPost=/usr/bin/find /var/backups/golinks -name golinks-*.db -type f -mtime +30 -delete
+
+# Keep the backup task constrained to the database and backup directories.
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/golinks /var/lib/golinks

@@ -6,7 +6,10 @@ SERVICE_GROUP="golinks"
 SERVICE_NAME="golinks"
 INSTALL_PATH="/usr/local/bin/golinks"
 DATA_DIR="/var/lib/golinks"
+BACKUP_DIR="/var/backups/golinks"
 UNIT_PATH="/etc/systemd/system/golinks.service"
+BACKUP_UNIT_PATH="/etc/systemd/system/golinks-backup.service"
+BACKUP_TIMER_PATH="/etc/systemd/system/golinks-backup.timer"
 MIN_GO_VERSION="1.24.0"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -87,6 +90,7 @@ if ! id "$SERVICE_USER" >/dev/null 2>&1; then
 fi
 
 install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$DATA_DIR"
+install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$BACKUP_DIR"
 
 echo "Building golinks..."
 cd "$REPO_DIR"
@@ -96,15 +100,18 @@ echo "Installing golinks..."
 install -m 0755 "$BUILD_DIR/golinks" "$INSTALL_PATH.new"
 mv "$INSTALL_PATH.new" "$INSTALL_PATH"
 install -m 0644 "$REPO_DIR/deploy/golinks.service" "$UNIT_PATH"
+install -m 0644 "$REPO_DIR/deploy/golinks-backup.service" "$BACKUP_UNIT_PATH"
+install -m 0644 "$REPO_DIR/deploy/golinks-backup.timer" "$BACKUP_TIMER_PATH"
 
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
+systemctl enable --now golinks-backup.timer
 systemctl restart "$SERVICE_NAME"
 
 echo
 echo "golinks is installed and running on port 80."
 echo "Check it with: systemctl status golinks"
+echo "Check backups with: systemctl list-timers golinks-backup.timer"
 echo "Open it with:  http://<server-address>/"
 echo
 echo "To use http://go, configure your DNS server to resolve 'go' to this host."
-

@@ -17,6 +17,9 @@ type memoryStore struct {
 	links        map[string]store.Link
 	listTopCalls int
 	listTopLimit int
+	searchCalls  int
+	searchQuery  string
+	searchLimit  int
 }
 
 func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error) {
@@ -33,6 +36,22 @@ func (s *memoryStore) ListTop(_ context.Context, limit int) ([]store.Link, error
 	var links []store.Link
 	for _, link := range s.links {
 		links = append(links, link)
+	}
+	if len(links) > limit {
+		links = links[:limit]
+	}
+	return links, nil
+}
+
+func (s *memoryStore) Search(_ context.Context, query string, limit int) ([]store.Link, error) {
+	s.searchCalls++
+	s.searchQuery = query
+	s.searchLimit = limit
+	var links []store.Link
+	for _, link := range s.links {
+		if strings.Contains(link.Shortcut, query) {
+			links = append(links, link)
+		}
 	}
 	if len(links) > limit {
 		links = links[:limit]
@@ -163,6 +182,38 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	}
 }
 
+func TestSearchLinks(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3}
+	linkStore.links["calendar"] = store.Link{Shortcut: "calendar", DestinationURL: "https://example.com/calendar", UseCount: 1}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/links?q=board", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf("content type = %q", contentType)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"shortcut":"docs/onboarding"`) || strings.Contains(body, `"calendar"`) {
+		t.Fatalf("response body = %q", body)
+	}
+	if linkStore.searchCalls != 1 || linkStore.searchQuery != "board" || linkStore.searchLimit != 50 {
+		t.Fatalf("search calls = %d, query = %q, limit = %d", linkStore.searchCalls, linkStore.searchQuery, linkStore.searchLimit)
+	}
+}
+
+func TestSearchScriptCachesTopLinks(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
+	body := response.Body.String()
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") {
+		t.Fatalf("search script = %q", body)
+	}
+}
+
 func TestUnknownShortcutOffersToCreateLink(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
 	response := httptest.NewRecorder()
@@ -238,7 +289,7 @@ func TestCreateRejectsInvalidValuesAndPreservesFields(t *testing.T) {
 }
 
 func TestCreateRejectsInvalidShortcutCharacters(t *testing.T) {
-	for _, shortcut := range []string{"has space", "has@symbol", "delete/admin"} {
+	for _, shortcut := range []string{"has space", "has@symbol", "api/links", "delete/admin"} {
 		t.Run(shortcut, func(t *testing.T) {
 			handler, linkStore := newTestHandler(t)
 			form := url.Values{
