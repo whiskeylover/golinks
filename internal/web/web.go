@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golinks/internal/store"
 )
@@ -58,6 +59,7 @@ type searchLink struct {
 	DestinationURL string `json:"destination_url"`
 	UseCount       int64  `json:"use_count"`
 	IsFavorite     bool   `json:"is_favorite"`
+	LastUsedAt     string `json:"last_used_at,omitempty"`
 }
 
 func New(linkStore linkStore, logger *slog.Logger) (*Server, error) {
@@ -111,11 +113,16 @@ func (s *Server) searchLinks(w http.ResponseWriter, r *http.Request) {
 	}
 	results := make([]searchLink, 0, len(links))
 	for _, link := range links {
+		var lastUsedAt string
+		if link.LastUsedAt != nil {
+			lastUsedAt = link.LastUsedAt.Format(time.RFC3339Nano)
+		}
 		results = append(results, searchLink{
 			Shortcut:       link.Shortcut,
 			DestinationURL: link.DestinationURL,
 			UseCount:       link.UseCount,
 			IsFavorite:     link.IsFavorite,
+			LastUsedAt:     lastUsedAt,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")

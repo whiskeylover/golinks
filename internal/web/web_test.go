@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"golinks/internal/store"
 )
@@ -105,6 +106,8 @@ func (s *memoryStore) RecordUse(_ context.Context, shortcut string) error {
 		return store.ErrNotFound
 	}
 	link.UseCount++
+	now := time.Now().UTC()
+	link.LastUsedAt = &now
 	s.links[shortcut] = link
 	return nil
 }
@@ -211,6 +214,9 @@ func TestSaveEditAndRedirectNestedShortcut(t *testing.T) {
 	if count := linkStore.links["docs/onboarding"].UseCount; count != 1 {
 		t.Fatalf("use count = %d, want 1", count)
 	}
+	if linkStore.links["docs/onboarding"].LastUsedAt == nil {
+		t.Fatal("last used time was not recorded")
+	}
 }
 
 func TestCreateLinkFromHome(t *testing.T) {
@@ -257,7 +263,7 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	shown := httptest.NewRecorder()
 	handler.ServeHTTP(shown, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
 	body := shown.Body.String()
-	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) {
+	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) || !strings.Contains(body, `data-copy-path="/docs"`) {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.listFavoriteCalls != 1 {
@@ -340,7 +346,8 @@ func TestFaviconIsLinkedAndServed(t *testing.T) {
 
 func TestSearchLinks(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
-	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3, IsFavorite: true}
+	lastUsedAt := time.Date(2026, 6, 5, 21, 45, 0, 0, time.UTC)
+	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3, IsFavorite: true, LastUsedAt: &lastUsedAt}
 	linkStore.links["calendar"] = store.Link{Shortcut: "calendar", DestinationURL: "https://example.com/calendar", UseCount: 1}
 
 	response := httptest.NewRecorder()
@@ -352,7 +359,7 @@ func TestSearchLinks(t *testing.T) {
 		t.Fatalf("content type = %q", contentType)
 	}
 	body := response.Body.String()
-	if !strings.Contains(body, `"shortcut":"docs/onboarding"`) || !strings.Contains(body, `"is_favorite":true`) || strings.Contains(body, `"calendar"`) {
+	if !strings.Contains(body, `"shortcut":"docs/onboarding"`) || !strings.Contains(body, `"is_favorite":true`) || !strings.Contains(body, `"last_used_at":"2026-06-05T21:45:00Z"`) || strings.Contains(body, `"calendar"`) {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.searchCalls != 1 || linkStore.searchQuery != "board" || linkStore.searchLimit != 50 {
@@ -365,7 +372,7 @@ func TestSearchScriptCachesTopLinks(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
 	body := response.Body.String()
-	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "link.is_favorite") {
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") {
 		t.Fatalf("search script = %q", body)
 	}
 }

@@ -47,6 +47,9 @@ func TestStoreUpsertGetListAndBackup(t *testing.T) {
 	if link.IsFavorite {
 		t.Fatal("new link is favorite by default")
 	}
+	if link.LastUsedAt == nil {
+		t.Fatal("last used time was not recorded")
+	}
 
 	links, err := s.List(ctx)
 	if err != nil {
@@ -82,6 +85,9 @@ func TestStoreUpsertGetListAndBackup(t *testing.T) {
 	}
 	if restored.UseCount != 2 {
 		t.Fatalf("backup use count = %d, want 2", restored.UseCount)
+	}
+	if restored.LastUsedAt == nil {
+		t.Fatal("backup last used time was not preserved")
 	}
 }
 
@@ -141,6 +147,9 @@ VALUES ('docs', 'https://example.com/docs', 7, '2026-01-01T00:00:00Z', '2026-01-
 	}
 	if link.IsFavorite {
 		t.Fatal("migrated link is favorite by default")
+	}
+	if link.LastUsedAt != nil {
+		t.Fatalf("migrated link last used = %v, want nil", link.LastUsedAt)
 	}
 	if link.UseCount != 7 {
 		t.Fatalf("use count = %d, want 7", link.UseCount)
