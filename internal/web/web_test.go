@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,11 @@ type memoryStore struct {
 	searchCalls  int
 	searchQuery  string
 	searchLimit  int
+	healthErr    error
+}
+
+func (s *memoryStore) Ping(_ context.Context) error {
+	return s.healthErr
 }
 
 func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error) {
@@ -91,6 +97,36 @@ func newTestHandler(t *testing.T) (http.Handler, *memoryStore) {
 		t.Fatal(err)
 	}
 	return server.Handler(), linkStore
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "text/plain; charset=utf-8" {
+		t.Fatalf("content type = %q", contentType)
+	}
+	if body := response.Body.String(); body != "ok\n" {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestHealthEndpointReportsStoreFailure(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.healthErr = errors.New("database unavailable")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if body := response.Body.String(); body != "unhealthy\n" {
+		t.Fatalf("body = %q", body)
+	}
 }
 
 func TestSaveEditAndRedirectNestedShortcut(t *testing.T) {
@@ -307,7 +343,7 @@ func TestCreateRejectsInvalidValuesAndPreservesFields(t *testing.T) {
 }
 
 func TestCreateRejectsInvalidShortcutCharacters(t *testing.T) {
-	for _, shortcut := range []string{"has space", "has@symbol", "api/links", "delete/admin"} {
+	for _, shortcut := range []string{"has space", "has@symbol", "api/links", "delete/admin", "healthz"} {
 		t.Run(shortcut, func(t *testing.T) {
 			handler, linkStore := newTestHandler(t)
 			form := url.Values{

@@ -57,6 +57,20 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping database: %w", err)
+	}
+	var ok int
+	if err := s.db.QueryRowContext(ctx, "SELECT 1").Scan(&ok); err != nil {
+		return fmt.Errorf("check database query: %w", err)
+	}
+	if ok != 1 {
+		return fmt.Errorf("check database query: got %d", ok)
+	}
+	return nil
+}
+
 func (s *Store) migrate(ctx context.Context) error {
 	const migrationTable = `
 CREATE TABLE IF NOT EXISTS schema_migrations (

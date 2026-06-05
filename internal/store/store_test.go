@@ -81,6 +81,19 @@ func TestStoreUpsertGetListAndBackup(t *testing.T) {
 	}
 }
 
+func TestStorePing(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if err := s.Ping(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestStoreListTopOrdersByUsage(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
