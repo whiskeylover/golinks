@@ -240,9 +240,6 @@ improving reliability.
 
 ### Useful additions
 
-- A copy button for `http://go/<shortcut>`.
-- A `last_used_at` timestamp for identifying stale links and improving
-  ranking.
 - JSON or CSV import and export for migrations and disaster recovery.
 
 ### Shared-service features

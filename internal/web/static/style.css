@@ -263,18 +263,23 @@ button:hover {
   padding: 0;
 }
 
+.icon-button,
 .pin-button,
 .icon-link {
   align-items: center;
   background: transparent;
+  border: 0;
   color: #45515e;
+  cursor: pointer;
   display: inline-flex;
+  font: inherit;
   justify-content: center;
   line-height: 1;
   padding: 0.2rem;
   text-decoration: none;
 }
 
+.icon-button svg,
 .pin-button svg,
 .icon-link svg {
   display: block;
@@ -295,6 +300,9 @@ button:hover {
 .pin-button:hover,
 .pin-button:focus-visible,
 .pin-button.is-pinned,
+.icon-button:hover,
+.icon-button:focus-visible,
+.icon-button.is-copied,
 .icon-link:hover,
 .icon-link:focus-visible {
   background: transparent;
