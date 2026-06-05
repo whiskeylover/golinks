@@ -182,6 +182,24 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	}
 }
 
+func TestFaviconIsLinkedAndServed(t *testing.T) {
+	handler, _ := newTestHandler(t)
+	home := httptest.NewRecorder()
+	handler.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(home.Body.String(), `href="/static/favicon.svg"`) {
+		t.Fatal("home page does not link favicon")
+	}
+
+	icon := httptest.NewRecorder()
+	handler.ServeHTTP(icon, httptest.NewRequest(http.MethodGet, "/static/favicon.svg", nil))
+	if icon.Code != http.StatusOK {
+		t.Fatalf("favicon status = %d", icon.Code)
+	}
+	if !strings.Contains(icon.Body.String(), "<svg") {
+		t.Fatalf("favicon body = %q", icon.Body.String())
+	}
+}
+
 func TestSearchLinks(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
 	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 3}
