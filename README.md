@@ -92,7 +92,7 @@ directly to port `80`. Use a local reverse proxy if the Mac needs to serve
 Inspect the service with:
 
 ```bash
-launchctl print gui/$(id -u)/com.golinks.server
+launchctl print gui/$(id -u)/local.golinks.server
 ```
 
 Rerun `./scripts/deploy-macos.sh` to rebuild and restart the macOS service.

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-LABEL="com.golinks.server"
+LABEL="local.golinks.server"
 APP_DIR="${GOLINKS_APP_DIR:-$HOME/Library/Application Support/golinks}"
 BIN_DIR="$APP_DIR/bin"
 INSTALL_PATH="$BIN_DIR/golinks"
@@ -45,7 +45,7 @@ sed \
 	-e "s|__GOLINKS_BIN__|$INSTALL_PATH|g" \
 	-e "s|__GOLINKS_DB__|$APP_DIR/golinks.db|g" \
 	-e "s|__GOLINKS_LOG_DIR__|$LOG_DIR|g" \
-	"$REPO_DIR/deploy/com.golinks.server.plist" > "$PLIST_PATH"
+	"$REPO_DIR/deploy/local.golinks.server.plist" > "$PLIST_PATH"
 
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
