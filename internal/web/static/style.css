@@ -317,6 +317,11 @@ button:hover {
   cursor: default;
 }
 
+.temp-indicator-placeholder {
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .pin-form {
   background: transparent;
   border: 0;
