@@ -25,8 +25,16 @@ type Link struct {
 	UseCount       int64
 	IsFavorite     bool
 	LastUsedAt     *time.Time
+	ExpiresAt      *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+func (l Link) ExpirationDate() string {
+	if l.ExpiresAt == nil {
+		return ""
+	}
+	return l.ExpiresAt.UTC().Add(-time.Nanosecond).Format("2006-01-02")
 }
 
 type Store struct {
@@ -130,8 +138,11 @@ func (s *Store) applyMigration(ctx context.Context, name string) error {
 }
 
 func (s *Store) Get(ctx context.Context, shortcut string) (Link, error) {
+	if err := s.deleteExpired(ctx, shortcut); err != nil {
+		return Link{}, err
+	}
 	const query = `
-SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, expires_at, created_at, updated_at
 FROM links
 WHERE shortcut = ?`
 
@@ -146,8 +157,11 @@ WHERE shortcut = ?`
 }
 
 func (s *Store) List(ctx context.Context) ([]Link, error) {
+	if err := s.DeleteExpired(ctx); err != nil {
+		return nil, err
+	}
 	const query = `
-SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, expires_at, created_at, updated_at
 FROM links
 ORDER BY shortcut`
 
@@ -172,6 +186,9 @@ ORDER BY shortcut`
 }
 
 func (s *Store) CountFavorites(ctx context.Context) (int, error) {
+	if err := s.DeleteExpired(ctx); err != nil {
+		return 0, err
+	}
 	var count int
 	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM links WHERE is_favorite = 1").Scan(&count); err != nil {
 		return 0, fmt.Errorf("count favorite links: %w", err)
@@ -183,8 +200,11 @@ func (s *Store) ListFavorites(ctx context.Context, limit int) ([]Link, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
+	if err := s.DeleteExpired(ctx); err != nil {
+		return nil, err
+	}
 	const query = `
-SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, expires_at, created_at, updated_at
 FROM links
 WHERE is_favorite = 1
 ORDER BY shortcut
@@ -214,8 +234,11 @@ func (s *Store) ListTop(ctx context.Context, limit int) ([]Link, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
+	if err := s.DeleteExpired(ctx); err != nil {
+		return nil, err
+	}
 	const query = `
-SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, expires_at, created_at, updated_at
 FROM links
 WHERE is_favorite = 0
 ORDER BY use_count DESC, shortcut
@@ -246,8 +269,11 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]Link, er
 	if query == "" || limit <= 0 {
 		return nil, nil
 	}
+	if err := s.DeleteExpired(ctx); err != nil {
+		return nil, err
+	}
 	const statement = `
-SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, created_at, updated_at
+SELECT shortcut, destination_url, use_count, is_favorite, last_used_at, expires_at, created_at, updated_at
 FROM links
 WHERE shortcut LIKE ? ESCAPE '\'
 ORDER BY use_count DESC, shortcut
@@ -280,7 +306,8 @@ func escapeLike(value string) string {
 }
 
 func (s *Store) RecordUse(ctx context.Context, shortcut string) error {
-	result, err := s.db.ExecContext(ctx, "UPDATE links SET use_count = use_count + 1, last_used_at = ? WHERE shortcut = ?", time.Now().UTC().Format(time.RFC3339Nano), shortcut)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, "UPDATE links SET use_count = use_count + 1, last_used_at = ? WHERE shortcut = ? AND (expires_at IS NULL OR expires_at > ?)", now, shortcut, now)
 	if err != nil {
 		return fmt.Errorf("record use of link %q: %w", shortcut, err)
 	}
@@ -290,6 +317,27 @@ func (s *Store) RecordUse(ctx context.Context, shortcut string) error {
 	}
 	if rowsAffected == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) DeleteExpired(ctx context.Context) error {
+	if err := s.deleteExpired(ctx, ""); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) deleteExpired(ctx context.Context, shortcut string) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	var err error
+	if shortcut == "" {
+		_, err = s.db.ExecContext(ctx, "DELETE FROM links WHERE expires_at IS NOT NULL AND expires_at <= ?", now)
+	} else {
+		_, err = s.db.ExecContext(ctx, "DELETE FROM links WHERE shortcut = ? AND expires_at IS NOT NULL AND expires_at <= ?", shortcut, now)
+	}
+	if err != nil {
+		return fmt.Errorf("delete expired links: %w", err)
 	}
 	return nil
 }
@@ -324,16 +372,21 @@ func (s *Store) SetFavorite(ctx context.Context, shortcut string, favorite bool)
 	return nil
 }
 
-func (s *Store) Upsert(ctx context.Context, shortcut, destinationURL string) error {
+func (s *Store) Upsert(ctx context.Context, shortcut, destinationURL string, expiresAt *time.Time) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	var expiresAtValue sql.NullString
+	if expiresAt != nil {
+		expiresAtValue = sql.NullString{String: expiresAt.UTC().Format(time.RFC3339Nano), Valid: true}
+	}
 	const query = `
-INSERT INTO links (shortcut, destination_url, created_at, updated_at)
-VALUES (?, ?, ?, ?)
+INSERT INTO links (shortcut, destination_url, expires_at, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(shortcut) DO UPDATE SET
 	destination_url = excluded.destination_url,
+	expires_at = excluded.expires_at,
 	updated_at = excluded.updated_at`
 
-	if _, err := s.db.ExecContext(ctx, query, shortcut, destinationURL, now, now); err != nil {
+	if _, err := s.db.ExecContext(ctx, query, shortcut, destinationURL, expiresAtValue, now, now); err != nil {
 		return fmt.Errorf("upsert link %q: %w", shortcut, err)
 	}
 	return nil
@@ -365,9 +418,9 @@ type scanner interface {
 
 func scanLink(s scanner) (Link, error) {
 	var link Link
-	var lastUsedAt sql.NullString
+	var lastUsedAt, expiresAt sql.NullString
 	var createdAt, updatedAt string
-	if err := s.Scan(&link.Shortcut, &link.DestinationURL, &link.UseCount, &link.IsFavorite, &lastUsedAt, &createdAt, &updatedAt); err != nil {
+	if err := s.Scan(&link.Shortcut, &link.DestinationURL, &link.UseCount, &link.IsFavorite, &lastUsedAt, &expiresAt, &createdAt, &updatedAt); err != nil {
 		return Link{}, err
 	}
 
@@ -378,6 +431,13 @@ func scanLink(s scanner) (Link, error) {
 			return Link{}, fmt.Errorf("parse last_used_at: %w", err)
 		}
 		link.LastUsedAt = &parsed
+	}
+	if expiresAt.Valid {
+		parsed, err := time.Parse(time.RFC3339Nano, expiresAt.String)
+		if err != nil {
+			return Link{}, fmt.Errorf("parse expires_at: %w", err)
+		}
+		link.ExpiresAt = &parsed
 	}
 	link.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
 	if err != nil {

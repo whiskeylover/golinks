@@ -58,10 +58,13 @@
       const favoriteValue = link.is_favorite ? "0" : "1";
       const favoriteLabel = link.is_favorite ? "Unfavorite" : "Favorite";
       const favoriteClass = link.is_favorite ? " is-pinned" : "";
+      const temporaryClass = link.expires_date ? " is-temporary" : "";
+      const temporaryIcon = link.expires_date ? `<span aria-label="Temporary link, expires on ${escapeHTML(link.expires_date)}" class="temp-indicator icon-button" role="img" title="Expires on ${escapeHTML(link.expires_date)}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>` : "";
       return `<li>
-        <span class="shortcut-with-count"><a class="shortcut" href="/${path}">go/${escapeHTML(link.shortcut)}</a><span class="usage-count">${escapeHTML(link.use_count)}</span></span>
+        <span class="shortcut-with-count${temporaryClass}"><a class="shortcut" href="/${path}">go/${escapeHTML(link.shortcut)}</a><span class="link-badges"><span class="usage-count">${escapeHTML(link.use_count)}</span></span></span>
         <span class="destination">${escapeHTML(link.destination_url)}</span>
         <span class="row-actions">
+          ${temporaryIcon}
           <form class="pin-form" action="/favorite/${path}" method="post">
             <input name="favorite" type="hidden" value="${favoriteValue}">
             <button aria-label="${favoriteLabel} go/${escapeHTML(link.shortcut)}" class="pin-button${favoriteClass}" title="${favoriteLabel}" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>

@@ -35,7 +35,7 @@ type linkStore interface {
 	RecordUse(ctx context.Context, shortcut string) error
 	Delete(ctx context.Context, shortcut string) error
 	SetFavorite(ctx context.Context, shortcut string, favorite bool) error
-	Upsert(ctx context.Context, shortcut, destinationURL string) error
+	Upsert(ctx context.Context, shortcut, destinationURL string, expiresAt *time.Time) error
 }
 
 type Server struct {
@@ -52,6 +52,8 @@ type pageData struct {
 	ShowLinks      bool
 	Shortcut       string
 	DestinationURL string
+	IsTemporary    bool
+	ExpiresDate    string
 	Error          string
 	Message        string
 }
@@ -62,6 +64,7 @@ type searchLink struct {
 	UseCount       int64  `json:"use_count"`
 	IsFavorite     bool   `json:"is_favorite"`
 	LastUsedAt     string `json:"last_used_at,omitempty"`
+	ExpiresDate    string `json:"expires_date,omitempty"`
 }
 
 func New(linkStore linkStore, logger *slog.Logger) (*Server, error) {
@@ -119,12 +122,17 @@ func (s *Server) searchLinks(w http.ResponseWriter, r *http.Request) {
 		if link.LastUsedAt != nil {
 			lastUsedAt = link.LastUsedAt.Format(time.RFC3339Nano)
 		}
+		var expiresDate string
+		if link.ExpiresAt != nil {
+			expiresDate = expirationInputValue(*link.ExpiresAt)
+		}
 		results = append(results, searchLink{
 			Shortcut:       link.Shortcut,
 			DestinationURL: link.DestinationURL,
 			UseCount:       link.UseCount,
 			IsFavorite:     link.IsFavorite,
 			LastUsedAt:     lastUsedAt,
+			ExpiresDate:    expiresDate,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -141,16 +149,19 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	shortcut, shortcutErr := normalizeShortcut(r.FormValue("shortcut"))
 	destinationURL := strings.TrimSpace(r.FormValue("destination_url"))
 	urlErr := validateDestinationURL(destinationURL)
-	if shortcutErr != nil || urlErr != nil {
+	expiresAt, expiresDate, expirationErr := parseExpirationForm(r)
+	if shortcutErr != nil || urlErr != nil || expirationErr != nil {
 		s.renderHome(w, r, pageData{
 			Shortcut:       shortcut,
 			DestinationURL: destinationURL,
-			Error:          errorMessage(shortcutErr, urlErr),
+			IsTemporary:    r.FormValue("is_temporary") == "1",
+			ExpiresDate:    expiresDate,
+			Error:          errorMessage(shortcutErr, urlErr, expirationErr),
 		}, http.StatusBadRequest)
 		return
 	}
 
-	if err := s.store.Upsert(r.Context(), shortcut, destinationURL); err != nil {
+	if err := s.store.Upsert(r.Context(), shortcut, destinationURL, expiresAt); err != nil {
 		s.internalError(w, r, err)
 		return
 	}
@@ -206,6 +217,8 @@ func (s *Server) edit(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "edit.html", pageData{
 		Shortcut:       link.Shortcut,
 		DestinationURL: link.DestinationURL,
+		IsTemporary:    link.ExpiresAt != nil,
+		ExpiresDate:    expirationDate(link.ExpiresAt),
 		Message:        savedMessage(r),
 	})
 }
@@ -214,17 +227,23 @@ func (s *Server) save(w http.ResponseWriter, r *http.Request) {
 	shortcut, shortcutErr := normalizeShortcut(r.PathValue("shortcut"))
 	destinationURL := strings.TrimSpace(r.FormValue("destination_url"))
 	urlErr := validateDestinationURL(destinationURL)
-	if shortcutErr != nil || urlErr != nil {
+	expiresAt, expiresDate, expirationErr := parseExpirationForm(r)
+	if shortcutErr != nil || urlErr != nil || expirationErr != nil {
 		message := errorMessage(shortcutErr, urlErr)
+		if expirationErr != nil {
+			message = errorMessage(shortcutErr, urlErr, expirationErr)
+		}
 		s.renderStatus(w, r, "edit.html", pageData{
 			Shortcut:       shortcut,
 			DestinationURL: destinationURL,
+			IsTemporary:    r.FormValue("is_temporary") == "1",
+			ExpiresDate:    expiresDate,
 			Error:          message,
 		}, http.StatusBadRequest)
 		return
 	}
 
-	if err := s.store.Upsert(r.Context(), shortcut, destinationURL); err != nil {
+	if err := s.store.Upsert(r.Context(), shortcut, destinationURL, expiresAt); err != nil {
 		s.internalError(w, r, err)
 		return
 	}
@@ -437,6 +456,37 @@ func savedMessage(r *http.Request) string {
 		return "Saved."
 	}
 	return ""
+}
+
+func parseExpirationForm(r *http.Request) (*time.Time, string, error) {
+	if r.FormValue("is_temporary") != "1" {
+		return nil, "", nil
+	}
+	dateValue := strings.TrimSpace(r.FormValue("expires_date"))
+	if dateValue == "" {
+		return nil, dateValue, errors.New("expiration date is required for temporary links")
+	}
+	expiresDate, err := time.Parse("2006-01-02", dateValue)
+	if err != nil {
+		return nil, dateValue, errors.New("expiration date must use YYYY-MM-DD")
+	}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if expiresDate.Before(today) {
+		return nil, dateValue, errors.New("expiration date cannot be in the past")
+	}
+	expiresAt := expiresDate.AddDate(0, 0, 1)
+	return &expiresAt, dateValue, nil
+}
+
+func expirationDate(expiresAt *time.Time) string {
+	if expiresAt == nil {
+		return ""
+	}
+	return expirationInputValue(*expiresAt)
+}
+
+func expirationInputValue(expiresAt time.Time) string {
+	return expiresAt.UTC().Add(-time.Nanosecond).Format("2006-01-02")
 }
 
 func errorMessage(errs ...error) string {
