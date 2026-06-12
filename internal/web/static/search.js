@@ -59,7 +59,7 @@
       const favoriteLabel = link.is_favorite ? "Unfavorite" : "Favorite";
       const favoriteClass = link.is_favorite ? " is-pinned" : "";
       const temporaryClass = link.expires_date ? " is-temporary" : "";
-      const temporaryIcon = link.expires_date ? `<span aria-label="Temporary link, expires on ${escapeHTML(link.expires_date)}" class="temp-indicator icon-button" role="img" title="Expires on ${escapeHTML(link.expires_date)}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>` : "";
+      const temporaryIcon = link.expires_date ? `<span aria-label="Temporary link, expires on ${escapeHTML(link.expires_date)}" class="temp-indicator icon-button" role="img" title="Expires on ${escapeHTML(link.expires_date)}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>` : `<span aria-hidden="true" class="temp-indicator-placeholder icon-button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>`;
       return `<li>
         <span class="shortcut-with-count${temporaryClass}"><a class="shortcut" href="/${path}">go/${escapeHTML(link.shortcut)}</a><span class="link-badges"><span class="usage-count">${escapeHTML(link.use_count)}</span></span></span>
         <span class="destination">${escapeHTML(link.destination_url)}</span>
