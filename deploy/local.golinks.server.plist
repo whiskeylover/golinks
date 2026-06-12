@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.golinks.server</string>
+	<string>local.golinks.server</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>__GOLINKS_BIN__</string>
