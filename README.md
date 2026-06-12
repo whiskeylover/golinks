@@ -12,12 +12,18 @@ The server listens on `:8080` and stores links in `./data/golinks.db` by
 default. Open `http://localhost:8080`, create a shortcut, then visit a path
 such as `http://localhost:8080/docs/onboarding`.
 
+<img src="assets/golinks-home.png" alt="go/links home page with sample shortcuts" width="100%">
+
 Configuration is available through flags or environment variables:
 
 ```bash
 go run ./cmd/golinks serve -addr :8080 -db ./data/golinks.db
 GOLINKS_ADDR=:8080 GOLINKS_DB=./data/golinks.db go run ./cmd/golinks serve
 ```
+
+Edit an existing shortcut at `/edit/<shortcut>`, or clicking on the pencil icon next to the shortcut in the list:
+
+<img src="assets/golinks-edit.png" alt="Editing go/example pointing to example.com" width="100%">
 
 ## Development script
 
@@ -218,9 +224,13 @@ For the macOS user service:
 
 ## Delete a shortcut from the CLI
 
-The web UI intentionally does not advertise shortcut deletion. For
-maintenance tasks, including removing a malformed legacy shortcut, delete an
-exact stored key with:
+The web UI intentionally does not advertise shortcut deletion, but the hidden
+confirmation page at `/delete/<shortcut>` is available when needed:
+
+<img src="assets/golinks-delete.png" alt="Delete confirmation for go/example" width="100%">
+
+For maintenance tasks, including removing a malformed legacy shortcut, delete
+an exact stored key with:
 
 ```bash
 go run ./cmd/golinks list -db ./data/golinks.db
@@ -247,10 +257,6 @@ improving reliability.
 ### Useful additions
 
 - JSON or CSV import and export for migrations and disaster recovery.
-- Fallback search when a shortcut does not exist, showing likely matches
-  before the create form.
-- Temporary links with optional expiration dates for event, guest, or
-  short-lived shortcuts.
 
 ### Shared-service features
 
