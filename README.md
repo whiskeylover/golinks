@@ -1,6 +1,54 @@
 # go/links
 
-A small self-hosted URL shortener for memorable internal links.
+A small self-hosted URL shortener for memorable internal links. It is built
+for the kind of links a team, household, lab, or homelab reaches for all the
+time, typed straight into the browser address bar:
+
+- `go/picnic`
+- `go/birthdayparty`
+- `go/bookclub`
+- `go/teamlunch`
+
+The best version of go/links is boring in the nicest possible way: a tiny
+always-on computer on your LAN, such as a Raspberry Pi, thin client, mini PC,
+or spare Linux box, using the hostname `go`. Once it is running, anyone on the
+network can type `go/<shortcut>` into the address bar instead of hunting
+through bookmarks, chat history, admin portals, or wiki pages.
+
+Most browsers, including Chrome, understand `go/picnic` as a local address
+when `go` resolves on your LAN. Safari may need a trailing slash, such as
+`go/picnic/`, if you want to skip typing `http://`.
+
+## Why run it
+
+- Makes internal links feel as quick as commands: type `go/shortcut` and go.
+- Keeps private internal shortcuts inside your network.
+- Runs without an external service, account, browser extension, or cloud
+  dependency.
+- Works well on low-power hardware that can sit quietly on a shelf.
+- Uses one small SQLite database that is easy to back up and restore.
+- Provides a simple web UI for creating and editing links.
+- Supports nested shortcuts such as `go/events/picnic`.
+
+## Why this go/links
+
+There are plenty of go-links and URL-shortener projects. This one is for
+people who want the smallest useful thing they can understand, run, and
+recover without turning a shortcut service into a platform.
+
+- LAN-first by design: it is meant to feel natural at `go/shortcut`, not just
+  as another public short-link app.
+- Simple to operate: one Go binary, one SQLite database, no external service,
+  no queue, no cache, no frontend build chain.
+- Good fit for tiny hardware: a Raspberry Pi, mini PC, thin client, VM, or
+  spare Linux box is enough.
+- Production-minded without being heavy: Debian `systemd` deployment, an
+  unprivileged service user, port `80` binding without running as root, health
+  checks, and scheduled local backups are already included.
+- Easy to inspect and repair: links live in a local SQLite database, and the
+  command-line tools cover backup, list, and maintenance deletion.
+- Friendly for everyday users: the web UI focuses on creating, finding, using,
+  and editing shortcuts instead of exposing a pile of administration screens.
 
 ## Run locally
 
@@ -25,6 +73,120 @@ Edit an existing shortcut at `/edit/<shortcut>`, or clicking on the pencil icon 
 
 <img src="assets/golinks-edit.png" alt="Editing go/example pointing to example.com" width="100%">
 
+## Step-by-step HOWTO
+
+This is the recommended home or small-office setup: install go/links on a
+minimal Debian-family Linux machine, give that machine the hostname `go`, and
+serve the app on port `80`.
+
+### 1. Pick a small always-on host
+
+Use a Raspberry Pi, mini PC, thin client, spare Linux box, or VM that can stay
+powered on. Raspberry Pi OS, Debian, and Ubuntu are good targets.
+
+Make sure it is on the same LAN as the people who will use the shortcuts.
+
+### 2. Set the hostname to `go`
+
+On the go/links host:
+
+```bash
+sudo hostnamectl set-hostname go
+```
+
+Reconnect to the machine if your shell prompt or SSH session still shows the
+old name.
+
+Many networks will now resolve the machine as `go.local` through mDNS. For the
+shorter `http://go` address, also add a DNS entry or DHCP reservation in your
+router that points the name `go` to this machine's LAN IP address. If your
+router does not support local DNS names, add a hosts-file entry on each client
+that needs to use it.
+
+### 3. Install Go if needed
+
+The Debian installer can install Go automatically when Go `1.24` or newer is
+not already available. If you prefer to install Go yourself, install it before
+the deploy step and confirm:
+
+```bash
+go version
+```
+
+### 4. Get the project onto the host
+
+Clone or copy this repository onto the host:
+
+```bash
+git clone https://github.com/whiskeylover/golinks.git
+cd golinks
+```
+
+If you copied a release archive instead of using Git, enter the extracted
+project directory.
+
+### 5. Deploy the service
+
+On Debian, Raspberry Pi OS, or Ubuntu:
+
+```bash
+sudo ./scripts/deploy-debian.sh
+```
+
+The installer builds the app, creates an unprivileged `golinks` user, stores
+the database at `/var/lib/golinks/golinks.db`, starts the service on port
+`80`, enables it at boot, and enables daily local backups.
+
+### 6. Check that it is healthy
+
+From the go/links host:
+
+```bash
+curl http://localhost/healthz
+systemctl status golinks
+```
+
+From another computer on the LAN:
+
+```bash
+curl http://go/healthz
+```
+
+If `http://go/healthz` does not work but `http://<server-ip>/healthz` does,
+the service is running and only local name resolution needs attention.
+
+### 7. Create your first shortcuts
+
+Open `http://go` in a browser, add a shortcut such as:
+
+- Shortcut: `picnic`
+- Destination: a shared invite, map, signup sheet, or planning doc
+
+Then visit:
+
+```text
+go/picnic
+```
+
+In most browsers, typing `go/picnic` in the address bar is enough. In Safari,
+try `go/picnic/` if the browser searches instead of opening the link.
+
+Add a few high-value links first: picnic plans, birthday party details, the
+shared grocery list, school calendar, book club notes, team lunch signup, house
+manual, wiki, docs, dashboards, and frequently used admin pages.
+
+### 8. Back it up
+
+The Debian deployment enables a daily backup timer that writes SQLite backups
+to `/var/backups/golinks`. Check it with:
+
+```bash
+systemctl list-timers golinks-backup.timer
+```
+
+For a durable setup, periodically copy those backups to another machine, NAS,
+or cloud bucket.
+
 ## Development script
 
 `scripts/run-dev.sh` is a convenience wrapper for running the app from a
@@ -34,13 +196,17 @@ repository checkout on Linux or macOS:
 GOLINKS_ADDR=:8081 GOLINKS_DB=./data/test.db ./scripts/run-dev.sh
 ```
 
-## Use `http://go`
+## Use `go/shortcut`
 
 The short hostname needs local network configuration outside the application:
 
 1. Resolve `go` to the server through local DNS or a hosts-file entry.
 2. Expose the service on port `80`, either directly with `-addr :80` or
    through a reverse proxy.
+
+After that, the everyday usage is simply typing `go/<shortcut>` in the browser
+address bar. Use `http://go/<shortcut>` when you want to be explicit, or add a
+trailing slash in Safari if it treats the shortcut as a search.
 
 ## Deploy on Debian Linux
 
