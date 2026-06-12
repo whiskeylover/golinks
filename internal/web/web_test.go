@@ -439,14 +439,18 @@ func TestFavoriteRouteRejectsMissingAndInvalidShortcut(t *testing.T) {
 
 func TestUnknownShortcutOffersToCreateLink(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
+	linkStore.links["missing-docs"] = store.Link{Shortcut: "missing-docs", DestinationURL: "https://example.com/docs", UseCount: 4}
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/missing", nil))
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d", response.Code)
 	}
 	body := response.Body.String()
-	if !strings.Contains(body, "This shortcut doesn&#39;t exist yet.") || !strings.Contains(body, `value="missing" disabled`) || !strings.Contains(body, `action="/edit/missing"`) {
+	if !strings.Contains(body, "This shortcut doesn&#39;t exist yet.") || !strings.Contains(body, `value="missing" disabled`) || !strings.Contains(body, `action="/edit/missing"`) || !strings.Contains(body, "Likely matches") || !strings.Contains(body, `href="/missing-docs"`) || !strings.Contains(body, "https://example.com/docs") || !strings.Contains(body, `class="usage-count">4</span>`) {
 		t.Fatalf("response body = %q", body)
+	}
+	if linkStore.searchCalls != 1 || linkStore.searchQuery != "missing" || linkStore.searchLimit != 5 {
+		t.Fatalf("search calls = %d, query = %q, limit = %d", linkStore.searchCalls, linkStore.searchQuery, linkStore.searchLimit)
 	}
 
 	form := url.Values{"destination_url": {"https://example.com/missing"}}
@@ -462,6 +466,25 @@ func TestUnknownShortcutOffersToCreateLink(t *testing.T) {
 	}
 	if got := linkStore.links["missing"].DestinationURL; got != "https://example.com/missing" {
 		t.Fatalf("stored URL = %q", got)
+	}
+}
+
+func TestUnknownNestedShortcutShowsTokenFallbackMatches(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	linkStore.links["docs/onboarding"] = store.Link{Shortcut: "docs/onboarding", DestinationURL: "https://example.com/docs", UseCount: 8}
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/docs/onboardng", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "Likely matches") || !strings.Contains(body, `href="/docs/onboarding"`) || !strings.Contains(body, "https://example.com/docs") {
+		t.Fatalf("response body = %q", body)
+	}
+	if linkStore.searchCalls != 3 || linkStore.searchQuery != "onboardng" || linkStore.searchLimit != 5 {
+		t.Fatalf("search calls = %d, last query = %q, limit = %d", linkStore.searchCalls, linkStore.searchQuery, linkStore.searchLimit)
 	}
 }
 

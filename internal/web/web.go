@@ -22,6 +22,7 @@ var assets embed.FS
 
 const topLinksLimit = 10
 const favoriteLinksLimit = 10
+const fallbackLinksLimit = 5
 const searchLinksLimit = 50
 
 type linkStore interface {
@@ -47,6 +48,7 @@ type pageData struct {
 	FavoriteLinks  []store.Link
 	FavoriteMore   int
 	TopLinks       []store.Link
+	SuggestedLinks []store.Link
 	ShowLinks      bool
 	Shortcut       string
 	DestinationURL string
@@ -300,9 +302,15 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	}
 	link, err := s.store.Get(r.Context(), shortcut)
 	if errors.Is(err, store.ErrNotFound) {
+		suggestions, err := s.suggestLinks(r.Context(), shortcut, fallbackLinksLimit)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
 		s.render(w, r, "edit.html", pageData{
-			Shortcut: shortcut,
-			Message:  "This shortcut doesn't exist yet. Add a destination URL to create it.",
+			Shortcut:       shortcut,
+			SuggestedLinks: suggestions,
+			Message:        "This shortcut doesn't exist yet. Add a destination URL to create it.",
 		})
 		return
 	}
@@ -315,6 +323,53 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, link.DestinationURL, http.StatusTemporaryRedirect)
+}
+
+func (s *Server) suggestLinks(ctx context.Context, shortcut string, limit int) ([]store.Link, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	var suggestions []store.Link
+	seenLinks := make(map[string]bool)
+	for _, query := range suggestionQueries(shortcut) {
+		links, err := s.store.Search(ctx, query, limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, link := range links {
+			if seenLinks[link.Shortcut] {
+				continue
+			}
+			seenLinks[link.Shortcut] = true
+			suggestions = append(suggestions, link)
+			if len(suggestions) == limit {
+				return suggestions, nil
+			}
+		}
+	}
+	return suggestions, nil
+}
+
+func suggestionQueries(shortcut string) []string {
+	var queries []string
+	seen := make(map[string]bool)
+	add := func(query string) {
+		query = strings.TrimSpace(query)
+		if query == "" || seen[query] {
+			return
+		}
+		seen[query] = true
+		queries = append(queries, query)
+	}
+
+	add(shortcut)
+	for _, part := range strings.FieldsFunc(shortcut, func(char rune) bool {
+		return char == '/' || char == '-' || char == '_' || char == '.'
+	}) {
+		add(part)
+	}
+	return queries
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data pageData) {

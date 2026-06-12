@@ -241,6 +241,10 @@ improving reliability.
 ### Useful additions
 
 - JSON or CSV import and export for migrations and disaster recovery.
+- Fallback search when a shortcut does not exist, showing likely matches
+  before the create form.
+- Temporary links with optional expiration dates for event, guest, or
+  short-lived shortcuts.
 
 ### Shared-service features
 
