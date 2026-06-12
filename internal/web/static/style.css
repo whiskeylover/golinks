@@ -164,6 +164,10 @@ button:hover {
   padding: 0;
 }
 
+.suggestions {
+  margin-top: 2rem;
+}
+
 .links-heading {
   align-items: center;
   display: flex;

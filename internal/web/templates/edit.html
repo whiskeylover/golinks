@@ -20,6 +20,22 @@
       <input aria-label="Destination URL" id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required autofocus>
       <button type="submit">Save</button>
     </form>
+    {{if .SuggestedLinks}}
+    <section class="suggestions">
+      <h2>Likely matches</h2>
+      <ul class="links">
+        {{range .SuggestedLinks}}
+        <li>
+          <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
+          <span class="destination">{{.DestinationURL}}</span>
+          <span class="row-actions">
+            <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+          </span>
+        </li>
+        {{end}}
+      </ul>
+    </section>
+    {{end}}
   </main>
 </body>
 </html>
