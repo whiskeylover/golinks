@@ -15,12 +15,22 @@
     {{template "header"}}
     <section>
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
-      <form method="post">
+      <form class="link-form" method="post">
         <span class="prefix">go/</span>
         <input aria-label="Shortcut" id="shortcut" name="shortcut" value="{{.Shortcut}}" placeholder="docs/onboarding" required autofocus>
         <span aria-label="redirects to" class="redirect-arrow" role="img">&rarr;</span>
         <input aria-label="Destination URL" id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required>
-        <button type="submit">Save</button>
+        <span class="form-actions">
+          <label aria-label="Temporary link" class="temp-icon-button icon-button" title="Temporary">
+            <input name="is_temporary" type="checkbox" value="1" {{if .IsTemporary}}checked{{end}}>
+            <svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg>
+          </label>
+          <label class="expiration-control">
+            <span class="visually-hidden">Expiration date</span>
+            <input aria-label="Expiration date" name="expires_date" type="date" value="{{.ExpiresDate}}">
+          </label>
+          <button type="submit">Save</button>
+        </span>
       </form>
     </section>
     {{if .ShowLinks}}
@@ -39,9 +49,10 @@
       <ul class="links">
         {{range .FavoriteLinks}}
         <li>
-          <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
+          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
           <span class="destination">{{.DestinationURL}}</span>
           <span class="row-actions">
+            {{if .ExpiresAt}}<span aria-label="Temporary link, expires on {{.ExpirationDate}}" class="temp-indicator icon-button" role="img" title="Expires on {{.ExpirationDate}}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{end}}
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="0">
               <button aria-label="Unfavorite go/{{.Shortcut}}" class="pin-button is-pinned" title="Unfavorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
@@ -62,9 +73,10 @@
       <ul class="links">
         {{range .TopLinks}}
         <li>
-          <span class="shortcut-with-count"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="usage-count">{{.UseCount}}</span></span>
+          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
           <span class="destination">{{.DestinationURL}}</span>
           <span class="row-actions">
+            {{if .ExpiresAt}}<span aria-label="Temporary link, expires on {{.ExpirationDate}}" class="temp-indicator icon-button" role="img" title="Expires on {{.ExpirationDate}}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{end}}
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="1">
               <button aria-label="Favorite go/{{.Shortcut}}" class="pin-button" title="Favorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>

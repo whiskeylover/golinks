@@ -39,6 +39,10 @@ func (s *memoryStore) Get(_ context.Context, shortcut string) (store.Link, error
 	if !ok {
 		return store.Link{}, store.ErrNotFound
 	}
+	if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+		delete(s.links, shortcut)
+		return store.Link{}, store.ErrNotFound
+	}
 	return link, nil
 }
 
@@ -46,6 +50,9 @@ func (s *memoryStore) CountFavorites(_ context.Context) (int, error) {
 	s.countFavoriteCalls++
 	count := 0
 	for _, link := range s.links {
+		if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+			continue
+		}
 		if link.IsFavorite {
 			count++
 		}
@@ -58,6 +65,9 @@ func (s *memoryStore) ListFavorites(_ context.Context, limit int) ([]store.Link,
 	s.favoriteLimit = limit
 	var links []store.Link
 	for _, link := range s.links {
+		if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+			continue
+		}
 		if link.IsFavorite {
 			links = append(links, link)
 		}
@@ -73,6 +83,9 @@ func (s *memoryStore) ListTop(_ context.Context, limit int) ([]store.Link, error
 	s.listTopLimit = limit
 	var links []store.Link
 	for _, link := range s.links {
+		if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+			continue
+		}
 		if link.IsFavorite {
 			continue
 		}
@@ -90,6 +103,9 @@ func (s *memoryStore) Search(_ context.Context, query string, limit int) ([]stor
 	s.searchLimit = limit
 	var links []store.Link
 	for _, link := range s.links {
+		if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+			continue
+		}
 		if strings.Contains(link.Shortcut, query) {
 			links = append(links, link)
 		}
@@ -103,6 +119,10 @@ func (s *memoryStore) Search(_ context.Context, query string, limit int) ([]stor
 func (s *memoryStore) RecordUse(_ context.Context, shortcut string) error {
 	link, ok := s.links[shortcut]
 	if !ok {
+		return store.ErrNotFound
+	}
+	if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now().UTC()) {
+		delete(s.links, shortcut)
 		return store.ErrNotFound
 	}
 	link.UseCount++
@@ -130,8 +150,8 @@ func (s *memoryStore) SetFavorite(_ context.Context, shortcut string, favorite b
 	return nil
 }
 
-func (s *memoryStore) Upsert(_ context.Context, shortcut, destinationURL string) error {
-	s.links[shortcut] = store.Link{Shortcut: shortcut, DestinationURL: destinationURL}
+func (s *memoryStore) Upsert(_ context.Context, shortcut, destinationURL string, expiresAt *time.Time) error {
+	s.links[shortcut] = store.Link{Shortcut: shortcut, DestinationURL: destinationURL, ExpiresAt: expiresAt}
 	return nil
 }
 
@@ -219,8 +239,80 @@ func TestSaveEditAndRedirectNestedShortcut(t *testing.T) {
 	}
 }
 
+func TestEditCanMakeLinkTemporary(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	expiresDate := time.Now().UTC().AddDate(0, 0, 7).Format("2006-01-02")
+	form := url.Values{
+		"destination_url": {"https://example.com/event"},
+		"is_temporary":    {"1"},
+		"expires_date":    {expiresDate},
+	}
+	save := httptest.NewRequest(http.MethodPost, "/edit/event", strings.NewReader(form.Encode()))
+	save.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	saveResponse := httptest.NewRecorder()
+
+	handler.ServeHTTP(saveResponse, save)
+
+	if saveResponse.Code != http.StatusSeeOther {
+		t.Fatalf("save status = %d", saveResponse.Code)
+	}
+	link := linkStore.links["event"]
+	if link.ExpiresAt == nil || link.ExpiresAt.Format("2006-01-02") <= expiresDate {
+		t.Fatalf("expires at = %v, want after %s", link.ExpiresAt, expiresDate)
+	}
+
+	edit := httptest.NewRecorder()
+	handler.ServeHTTP(edit, httptest.NewRequest(http.MethodGet, "/edit/event", nil))
+	editBody := edit.Body.String()
+	if !strings.Contains(editBody, `name="is_temporary" type="checkbox" value="1" checked`) || !strings.Contains(editBody, `name="expires_date" type="date" value="`+expiresDate+`"`) {
+		t.Fatalf("edit body = %q", editBody)
+	}
+
+	home := httptest.NewRecorder()
+	handler.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
+	if !strings.Contains(home.Body.String(), `class="temp-indicator icon-button"`) || !strings.Contains(home.Body.String(), `title="Expires on `+expiresDate+`"`) {
+		t.Fatalf("home body = %q", home.Body.String())
+	}
+
+	search := httptest.NewRecorder()
+	handler.ServeHTTP(search, httptest.NewRequest(http.MethodGet, "/api/links?q=event", nil))
+	if !strings.Contains(search.Body.String(), `"expires_date":"`+expiresDate+`"`) {
+		t.Fatalf("search body = %q", search.Body.String())
+	}
+}
+
+func TestEditRejectsTemporaryLinkWithoutExpirationDate(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	form := url.Values{
+		"destination_url": {"https://example.com/event"},
+		"is_temporary":    {"1"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/edit/event", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "expiration date is required") {
+		t.Fatalf("body = %q", response.Body.String())
+	}
+	if _, ok := linkStore.links["event"]; ok {
+		t.Fatal("stored temporary link without expiration date")
+	}
+}
+
 func TestCreateLinkFromHome(t *testing.T) {
 	handler, linkStore := newTestHandler(t)
+	home := httptest.NewRecorder()
+	handler.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/", nil))
+	homeBody := home.Body.String()
+	if !strings.Contains(homeBody, `class="temp-icon-button icon-button"`) || !strings.Contains(homeBody, `name="is_temporary" type="checkbox" value="1"`) || !strings.Contains(homeBody, `name="expires_date" type="date"`) {
+		t.Fatalf("home form does not include temporary controls: %q", homeBody)
+	}
+
 	form := url.Values{
 		"shortcut":        {"docs/onboarding"},
 		"destination_url": {"https://example.com/start"},
@@ -238,6 +330,58 @@ func TestCreateLinkFromHome(t *testing.T) {
 	}
 	if got := linkStore.links["docs/onboarding"].DestinationURL; got != "https://example.com/start" {
 		t.Fatalf("stored URL = %q", got)
+	}
+	if linkStore.links["docs/onboarding"].ExpiresAt != nil {
+		t.Fatal("home-created link is temporary by default")
+	}
+}
+
+func TestCreateTemporaryLinkFromHome(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	expiresDate := time.Now().UTC().AddDate(0, 0, 3).Format("2006-01-02")
+	form := url.Values{
+		"shortcut":        {"campaign"},
+		"destination_url": {"https://example.com/campaign"},
+		"is_temporary":    {"1"},
+		"expires_date":    {expiresDate},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d", response.Code)
+	}
+	link := linkStore.links["campaign"]
+	if link.ExpiresAt == nil || link.ExpiresAt.Format("2006-01-02") <= expiresDate {
+		t.Fatalf("expires at = %v, want after %s", link.ExpiresAt, expiresDate)
+	}
+}
+
+func TestCreateRejectsTemporaryLinkWithoutExpirationDate(t *testing.T) {
+	handler, linkStore := newTestHandler(t)
+	form := url.Values{
+		"shortcut":        {"campaign"},
+		"destination_url": {"https://example.com/campaign"},
+		"is_temporary":    {"1"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", response.Code)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "expiration date is required") || !strings.Contains(body, `name="is_temporary" type="checkbox" value="1" checked`) {
+		t.Fatalf("body = %q", body)
+	}
+	if _, ok := linkStore.links["campaign"]; ok {
+		t.Fatal("stored temporary link without expiration date")
 	}
 }
 
@@ -372,7 +516,7 @@ func TestSearchScriptCachesTopLinks(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
 	body := response.Body.String()
-	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "Unfavorite") || !strings.Contains(body, "Favorite") || !strings.Contains(body, "data-qr-path") || !strings.Contains(body, "new URL(button.dataset.qrPath, window.location.origin).href") || !strings.Contains(body, "`go${button.dataset.qrPath}`") || !strings.Contains(body, "qrcode(0, \"M\")") || !strings.Contains(body, "title.textContent = label") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") || strings.Contains(body, "data-qr-url") {
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "Unfavorite") || !strings.Contains(body, "Favorite") || !strings.Contains(body, "data-qr-path") || !strings.Contains(body, "new URL(button.dataset.qrPath, window.location.origin).href") || !strings.Contains(body, "`go${button.dataset.qrPath}`") || !strings.Contains(body, "qrcode(0, \"M\")") || !strings.Contains(body, "title.textContent = label") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "temp-indicator") || !strings.Contains(body, "Expires on") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") || strings.Contains(body, "data-qr-url") {
 		t.Fatalf("search script = %q", body)
 	}
 }

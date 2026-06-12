@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestStoreUpsertGetListAndBackup(t *testing.T) {
@@ -17,10 +18,10 @@ func TestStoreUpsertGetListAndBackup(t *testing.T) {
 	}
 	defer s.Close()
 
-	if err := s.Upsert(ctx, "docs/onboarding", "https://example.com/start"); err != nil {
+	if err := s.Upsert(ctx, "docs/onboarding", "https://example.com/start", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Upsert(ctx, "docs/onboarding", "https://example.com/updated"); err != nil {
+	if err := s.Upsert(ctx, "docs/onboarding", "https://example.com/updated", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -154,6 +155,48 @@ VALUES ('docs', 'https://example.com/docs', 7, '2026-01-01T00:00:00Z', '2026-01-
 	if link.UseCount != 7 {
 		t.Fatalf("use count = %d, want 7", link.UseCount)
 	}
+	if link.ExpiresAt != nil {
+		t.Fatalf("migrated link expires at = %v, want nil", link.ExpiresAt)
+	}
+}
+
+func TestStoreTemporaryLinksExpireAndCanBeReused(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "golinks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	expired := time.Now().UTC().Add(-time.Hour)
+	if err := s.Upsert(ctx, "launch", "https://example.com/old", &expired); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Get(ctx, "launch"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
+	if err := s.Upsert(ctx, "launch", "https://example.com/new", nil); err != nil {
+		t.Fatal(err)
+	}
+	link, err := s.Get(ctx, "launch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.DestinationURL != "https://example.com/new" || link.ExpiresAt != nil {
+		t.Fatalf("reused link = %#v", link)
+	}
+
+	future := time.Now().UTC().Add(24 * time.Hour)
+	if err := s.Upsert(ctx, "event", "https://example.com/event", &future); err != nil {
+		t.Fatal(err)
+	}
+	link, err = s.Get(ctx, "event")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.ExpiresAt == nil || !link.ExpiresAt.Equal(future) {
+		t.Fatalf("expires at = %v, want %v", link.ExpiresAt, future)
+	}
 }
 
 func TestStoreListTopOrdersByUsage(t *testing.T) {
@@ -169,7 +212,7 @@ func TestStoreListTopOrdersByUsage(t *testing.T) {
 		"beta":  "https://example.com/beta",
 		"gamma": "https://example.com/gamma",
 	} {
-		if err := s.Upsert(ctx, shortcut, destination); err != nil {
+		if err := s.Upsert(ctx, shortcut, destination, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -201,7 +244,7 @@ func TestStoreFavorites(t *testing.T) {
 		"beta":  "https://example.com/beta",
 		"gamma": "https://example.com/gamma",
 	} {
-		if err := s.Upsert(ctx, shortcut, destination); err != nil {
+		if err := s.Upsert(ctx, shortcut, destination, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -265,7 +308,7 @@ func TestStoreSearchesShortcutLiterally(t *testing.T) {
 		"docs/100%":       "https://example.com/percent",
 		"docs/a_b":        "https://example.com/underscore",
 	} {
-		if err := s.Upsert(ctx, shortcut, destination); err != nil {
+		if err := s.Upsert(ctx, shortcut, destination, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -306,7 +349,7 @@ func TestStoreDelete(t *testing.T) {
 	}
 	defer s.Close()
 
-	if err := s.Upsert(ctx, "docs", "https://example.com/docs"); err != nil {
+	if err := s.Upsert(ctx, "docs", "https://example.com/docs", nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Delete(ctx, "docs"); err != nil {

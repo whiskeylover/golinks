@@ -86,6 +86,48 @@ form {
   padding: 0.75rem;
 }
 
+.form-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.55rem;
+  margin-left: auto;
+}
+
+.temp-icon-button {
+  border-radius: 0.4rem;
+  height: 2.55rem;
+  padding: 0;
+  position: relative;
+  width: 2.55rem;
+}
+
+.temp-icon-button input {
+  height: 1px;
+  min-width: 0;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.temp-icon-button:has(input:checked),
+.temp-icon-button:focus-within {
+  color: #8bd4f0;
+}
+
+.expiration-control {
+  display: none;
+}
+
+.link-form:has(.temp-icon-button input:checked) .expiration-control {
+  display: inline-flex;
+}
+
+.expiration-control input {
+  font-size: 0.85rem;
+  min-width: 8.7rem;
+  padding: 0.46rem 0.55rem;
+}
+
 input {
   background: #090d12;
   border: 1px solid #283746;
@@ -231,12 +273,22 @@ button:hover {
   font-weight: 700;
 }
 
+.is-temporary .shortcut {
+  color: #8bd4f0;
+}
+
 .shortcut-with-count {
   align-items: center;
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
   min-width: 0;
+}
+
+.link-badges {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
 }
 
 .destination {
@@ -258,6 +310,11 @@ button:hover {
   display: flex;
   gap: 0.55rem;
   justify-content: flex-end;
+}
+
+.icon-button.temp-indicator {
+  color: #8bd4f0;
+  cursor: default;
 }
 
 .pin-form {
@@ -439,6 +496,26 @@ a {
   input {
     min-width: 0;
     width: 100%;
+  }
+
+  .form-actions {
+    align-items: stretch;
+    display: flex;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .expiration-control {
+    flex: 1;
+  }
+
+  .expiration-control input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .form-actions button {
+    flex: 1;
   }
 
   .search-box input {
