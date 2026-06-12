@@ -161,31 +161,37 @@ If `/srv` requires elevated permissions, run:
 ssh -t backup-host 'sudo mkdir -p /srv/backups/golinks && sudo chown $USER:$USER /srv/backups/golinks'
 ```
 
-The local backup directory is protected, so the sync usually runs from root's
-crontab on the golinks host. Make sure root can SSH to the backup host without
-prompting:
+The local backup directory is owned by the `golinks` service user, so prefer
+running the sync as that user instead of giving root a network SSH identity.
+Create an SSH key for `golinks` and make sure it can SSH to the backup host
+without prompting:
 
 ```bash
-sudo ssh backup-host 'true'
+sudo install -d -m 0700 -o golinks -g golinks ~golinks/.ssh
+sudo -u golinks ssh-keygen -t ed25519 -N '' -f ~golinks/.ssh/backup-host
+sudo -u golinks ssh-copy-id -i ~golinks/.ssh/backup-host.pub backup-host
+sudo -u golinks ssh -i ~golinks/.ssh/backup-host backup-host 'true'
 ```
 
-Then add a cron job on the golinks host:
+Then add a cron job for the `golinks` user on the golinks host:
 
 ```cron
-30 4 * * * rsync -a --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/
+30 4 * * * rsync -a -e 'ssh -i ~golinks/.ssh/backup-host' --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/
 ```
 
-Add it to root's crontab without replacing existing cron entries:
+Install it into the `golinks` user's crontab without replacing existing cron
+entries:
 
 ```bash
-(sudo crontab -l 2>/dev/null; echo '30 4 * * * rsync -a --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/') | sudo crontab -
+(sudo crontab -u golinks -l 2>/dev/null; echo "30 4 * * * rsync -a -e 'ssh -i ~golinks/.ssh/backup-host' --ignore-existing /var/backups/golinks/ backup-host:/srv/backups/golinks/") | sudo crontab -u golinks -
 ```
 
 This copies any new local backup files to `backup-host` every day at `04:30`.
 `--ignore-existing` avoids rewriting backups that were already copied.
 
-If you prefer running cron as your login user, grant that user read access to
-`/var/backups/golinks` and the backup files first.
+If you prefer running cron as root or your login user, make sure that account
+has read access to `/var/backups/golinks` and has its own non-interactive SSH
+access to the backup host.
 
 ### Debian Linux production restore
 
