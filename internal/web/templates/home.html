@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>go/links</title>
+  <title>{{.DisplayHost}} links</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/qrcode-generator.js"></script>
@@ -16,7 +16,7 @@
     <section>
       {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
       <form class="link-form" method="post">
-        <span class="prefix">go/</span>
+        <span class="prefix">{{.DisplayPrefix}}</span>
         <input aria-label="Shortcut" id="shortcut" name="shortcut" value="{{.Shortcut}}" placeholder="docs/onboarding" required autofocus>
         <span aria-label="redirects to" class="redirect-arrow" role="img">&rarr;</span>
         <input aria-label="Destination URL" id="destination_url" name="destination_url" type="url" value="{{.DestinationURL}}" placeholder="https://example.com" required>
@@ -49,17 +49,17 @@
       <ul class="links">
         {{range .FavoriteLinks}}
         <li>
-          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
+          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">{{$.DisplayPrefix}}{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
           <span class="destination">{{.DestinationURL}}</span>
           <span class="row-actions">
             {{if .ExpiresAt}}<span aria-label="Temporary link, expires on {{.ExpirationDate}}" class="temp-indicator icon-button" role="img" title="Expires on {{.ExpirationDate}}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{else}}<span aria-hidden="true" class="temp-indicator-placeholder icon-button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{end}}
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="0">
-              <button aria-label="Unfavorite go/{{.Shortcut}}" class="pin-button is-pinned" title="Unfavorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
+              <button aria-label="Unfavorite {{$.DisplayPrefix}}{{.Shortcut}}" class="pin-button is-pinned" title="Unfavorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
             </form>
-            <button aria-label="Copy go/{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
-            <button aria-label="QR code for go/{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
-            <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+            <button aria-label="Copy {{$.DisplayPrefix}}{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
+            <button aria-label="QR code for {{$.DisplayPrefix}}{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
+            <a aria-label="Edit {{$.DisplayPrefix}}{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
           </span>
         </li>
         {{end}}
@@ -73,17 +73,17 @@
       <ul class="links">
         {{range .TopLinks}}
         <li>
-          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">go/{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
+          <span class="shortcut-with-count {{if .ExpiresAt}}is-temporary{{end}}"><a class="shortcut" href="/{{.Shortcut}}">{{$.DisplayPrefix}}{{.Shortcut}}</a><span class="link-badges"><span class="usage-count">{{.UseCount}}</span></span></span>
           <span class="destination">{{.DestinationURL}}</span>
           <span class="row-actions">
             {{if .ExpiresAt}}<span aria-label="Temporary link, expires on {{.ExpirationDate}}" class="temp-indicator icon-button" role="img" title="Expires on {{.ExpirationDate}}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{else}}<span aria-hidden="true" class="temp-indicator-placeholder icon-button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>{{end}}
             <form class="pin-form" action="/favorite/{{.Shortcut}}" method="post">
               <input name="favorite" type="hidden" value="1">
-              <button aria-label="Favorite go/{{.Shortcut}}" class="pin-button" title="Favorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
+              <button aria-label="Favorite {{$.DisplayPrefix}}{{.Shortcut}}" class="pin-button" title="Favorite" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
             </form>
-            <button aria-label="Copy go/{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
-            <button aria-label="QR code for go/{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
-            <a aria-label="Edit go/{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+            <button aria-label="Copy {{$.DisplayPrefix}}{{.Shortcut}}" class="copy-button icon-button" data-copy-path="/{{.Shortcut}}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
+            <button aria-label="QR code for {{$.DisplayPrefix}}{{.Shortcut}}" class="qr-button icon-button" data-qr-path="/{{.Shortcut}}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
+            <a aria-label="Edit {{$.DisplayPrefix}}{{.Shortcut}}" class="edit icon-link" href="/edit/{{.Shortcut}}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
           </span>
         </li>
         {{end}}

@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Delete go/{{.Shortcut}}</title>
+  <title>Delete {{.DisplayPrefix}}{{.Shortcut}}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -13,7 +13,7 @@
     {{template "header"}}
     <section class="confirmation">
       <h2>Delete shortcut</h2>
-      <p>Delete <strong>go/{{.Shortcut}}</strong>?</p>
+      <p>Delete <strong>{{.DisplayPrefix}}{{.Shortcut}}</strong>?</p>
       <p class="destination">{{.DestinationURL}}</p>
       <form method="post">
         <button class="danger" type="submit">Delete shortcut</button>

@@ -391,7 +391,7 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 
 	hidden := httptest.NewRecorder()
 	handler.ServeHTTP(hidden, httptest.NewRequest(http.MethodGet, "/", nil))
-	if strings.Contains(hidden.Body.String(), "Top links") || strings.Contains(hidden.Body.String(), "go/docs") {
+	if strings.Contains(hidden.Body.String(), "Top links") || strings.Contains(hidden.Body.String(), "example.com/docs") {
 		t.Fatalf("default home response includes links: %q", hidden.Body.String())
 	}
 	if linkStore.listTopCalls != 0 {
@@ -405,9 +405,11 @@ func TestHomeOnlyShowsTopLinksWhenRequested(t *testing.T) {
 	}
 
 	shown := httptest.NewRecorder()
-	handler.ServeHTTP(shown, httptest.NewRequest(http.MethodGet, "/?links=1", nil))
+	shownRequest := httptest.NewRequest(http.MethodGet, "/?links=1", nil)
+	shownRequest.Host = "links.test:8080"
+	handler.ServeHTTP(shown, shownRequest)
 	body := shown.Body.String()
-	if !strings.Contains(body, "Top links") || !strings.Contains(body, "go/docs") || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) || !strings.Contains(body, `data-copy-path="/docs"`) || !strings.Contains(body, `data-qr-path="/docs"`) || !strings.Contains(body, `/static/qrcode-generator.js`) {
+	if !strings.Contains(body, "Top links") || !strings.Contains(body, "links.test:8080/docs") || !strings.Contains(body, `<span class="prefix">links.test:8080/</span>`) || !strings.Contains(body, `class="usage-count">3</span>`) || !strings.Contains(body, "/edit/docs") || !strings.Contains(body, `action="/favorite/docs"`) || !strings.Contains(body, `data-copy-path="/docs"`) || !strings.Contains(body, `data-qr-path="/docs"`) || !strings.Contains(body, `/static/qrcode-generator.js`) {
 		t.Fatalf("response body = %q", body)
 	}
 	if linkStore.listFavoriteCalls != 1 {
@@ -441,13 +443,13 @@ func TestHomeShowsFavoritesAboveTopLinks(t *testing.T) {
 	if strings.Index(body, "Favorites") > strings.Index(body, "Top links") {
 		t.Fatalf("favorites were not shown before top links: %q", body)
 	}
-	if !strings.Contains(body, `<span class="row-actions">`) || !strings.Contains(body, `class="edit icon-link"`) || !strings.Contains(body, `aria-label="Edit go/docs"`) {
+	if !strings.Contains(body, `<span class="row-actions">`) || !strings.Contains(body, `class="edit icon-link"`) || !strings.Contains(body, `aria-label="Edit example.com/docs"`) {
 		t.Fatalf("favorite row does not include compact icon actions: %q", body)
 	}
-	if !strings.Contains(body, `name="favorite" type="hidden" value="0"`) || !strings.Contains(body, `class="pin-button is-pinned"`) || !strings.Contains(body, `aria-label="Unfavorite go/docs"`) {
+	if !strings.Contains(body, `name="favorite" type="hidden" value="0"`) || !strings.Contains(body, `class="pin-button is-pinned"`) || !strings.Contains(body, `aria-label="Unfavorite example.com/docs"`) {
 		t.Fatalf("favorite row does not include unfavorite button: %q", body)
 	}
-	if !strings.Contains(body, `name="favorite" type="hidden" value="1"`) || !strings.Contains(body, `aria-label="Favorite go/calendar"`) {
+	if !strings.Contains(body, `name="favorite" type="hidden" value="1"`) || !strings.Contains(body, `aria-label="Favorite example.com/calendar"`) {
 		t.Fatalf("top row does not include favorite button: %q", body)
 	}
 }
@@ -516,7 +518,7 @@ func TestSearchScriptCachesTopLinks(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/static/search.js", nil))
 	body := response.Body.String()
-	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "Unfavorite") || !strings.Contains(body, "Favorite") || !strings.Contains(body, "data-qr-path") || !strings.Contains(body, "new URL(button.dataset.qrPath, window.location.origin).href") || !strings.Contains(body, "`go${button.dataset.qrPath}`") || !strings.Contains(body, "qrcode(0, \"M\")") || !strings.Contains(body, "title.textContent = label") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "temp-indicator") || !strings.Contains(body, "Expires on") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") || strings.Contains(body, "data-qr-url") {
+	if !strings.Contains(body, "const topLinksHTML = results.innerHTML") || !strings.Contains(body, "results.innerHTML = topLinksHTML") || !strings.Contains(body, "const displayHost = window.location.host") || !strings.Contains(body, "const displayPrefix = displayHost ? `${displayHost}/` : \"/\"") || !strings.Contains(body, "/api/links?q=") || !strings.Contains(body, "/favorite/${path}") || !strings.Contains(body, "Unfavorite") || !strings.Contains(body, "Favorite") || !strings.Contains(body, "data-qr-path") || !strings.Contains(body, "new URL(button.dataset.qrPath, window.location.origin).href") || !strings.Contains(body, "`${displayHost}${button.dataset.qrPath}`") || !strings.Contains(body, "qrcode(0, \"M\")") || !strings.Contains(body, "title.textContent = label") || !strings.Contains(body, "link.is_favorite") || !strings.Contains(body, "temp-indicator") || !strings.Contains(body, "Expires on") || !strings.Contains(body, "navigator.clipboard") || !strings.Contains(body, "data-copy-path") || strings.Contains(body, "data-qr-url") {
 		t.Fatalf("search script = %q", body)
 	}
 }
@@ -714,7 +716,7 @@ func TestDeleteRequiresConfirmationPost(t *testing.T) {
 		t.Fatalf("confirmation status = %d", confirm.Code)
 	}
 	body := confirm.Body.String()
-	if !strings.Contains(body, "Delete shortcut") || !strings.Contains(body, "go/docs/onboarding") || !strings.Contains(body, "https://example.com/docs") {
+	if !strings.Contains(body, "Delete shortcut") || !strings.Contains(body, "example.com/docs/onboarding") || !strings.Contains(body, "https://example.com/docs") {
 		t.Fatalf("confirmation body = %q", body)
 	}
 	if _, ok := linkStore.links["docs/onboarding"]; !ok {
