@@ -6,6 +6,8 @@
   }
 
   const topLinksHTML = results.innerHTML;
+  const displayHost = window.location.host;
+  const displayPrefix = displayHost ? `${displayHost}/` : "/";
   let controller;
   let timeout;
 
@@ -60,18 +62,19 @@
       const favoriteClass = link.is_favorite ? " is-pinned" : "";
       const temporaryClass = link.expires_date ? " is-temporary" : "";
       const temporaryIcon = link.expires_date ? `<span aria-label="Temporary link, expires on ${escapeHTML(link.expires_date)}" class="temp-indicator icon-button" role="img" title="Expires on ${escapeHTML(link.expires_date)}"><svg aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>` : `<span aria-hidden="true" class="temp-indicator-placeholder icon-button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 4v4l2.5 1.5"></path></svg></span>`;
+      const displayShortcut = `${escapeHTML(displayPrefix)}${escapeHTML(link.shortcut)}`;
       return `<li>
-        <span class="shortcut-with-count${temporaryClass}"><a class="shortcut" href="/${path}">go/${escapeHTML(link.shortcut)}</a><span class="link-badges"><span class="usage-count">${escapeHTML(link.use_count)}</span></span></span>
+        <span class="shortcut-with-count${temporaryClass}"><a class="shortcut" href="/${path}">${displayShortcut}</a><span class="link-badges"><span class="usage-count">${escapeHTML(link.use_count)}</span></span></span>
         <span class="destination">${escapeHTML(link.destination_url)}</span>
         <span class="row-actions">
           ${temporaryIcon}
           <form class="pin-form" action="/favorite/${path}" method="post">
             <input name="favorite" type="hidden" value="${favoriteValue}">
-            <button aria-label="${favoriteLabel} go/${escapeHTML(link.shortcut)}" class="pin-button${favoriteClass}" title="${favoriteLabel}" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
+            <button aria-label="${favoriteLabel} ${displayShortcut}" class="pin-button${favoriteClass}" title="${favoriteLabel}" type="submit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M8 1.4 10 5.6l4.6.7-3.3 3.2.8 4.6L8 11.9l-4.1 2.2.8-4.6-3.3-3.2 4.6-.7L8 1.4Z"></path></svg></button>
           </form>
-          <button aria-label="Copy go/${escapeHTML(link.shortcut)}" class="copy-button icon-button" data-copy-path="/${path}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
-          <button aria-label="QR code for go/${escapeHTML(link.shortcut)}" class="qr-button icon-button" data-qr-path="/${path}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
-          <a aria-label="Edit go/${escapeHTML(link.shortcut)}" class="edit icon-link" href="/edit/${path}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
+          <button aria-label="Copy ${displayShortcut}" class="copy-button icon-button" data-copy-path="/${path}" title="Copy" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 1h7v9H6z"></path><path d="M3 5h7v10H3z"></path></svg></button>
+          <button aria-label="QR code for ${displayShortcut}" class="qr-button icon-button" data-qr-path="/${path}" title="QR" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 2h4v4H2zM10 2h4v4h-4zM2 10h4v4H2zM10 10h1v1h-1zM13 10h1v1h-1zM10 13h4v1h-4zM13 11h1v2h-1z"></path></svg></button>
+          <a aria-label="Edit ${displayShortcut}" class="edit icon-link" href="/edit/${path}" title="Edit"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M11.8 1.7a1.6 1.6 0 0 1 2.3 2.3l-8.5 8.5-3.1.8.8-3.1 8.5-8.5Zm-1.1 2.8.8.8"></path></svg></a>
         </span>
       </li>`;
     }).join("");
@@ -143,9 +146,10 @@
     if (!button) {
       return;
     }
+    const label = displayHost ? `${displayHost}${button.dataset.qrPath}` : button.dataset.qrPath;
     showQRCode(
       new URL(button.dataset.qrPath, window.location.origin).href,
-      `go${button.dataset.qrPath}`,
+      label,
     );
   });
 

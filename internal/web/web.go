@@ -49,6 +49,8 @@ type pageData struct {
 	FavoriteMore   int
 	TopLinks       []store.Link
 	SuggestedLinks []store.Link
+	DisplayHost    string
+	DisplayPrefix  string
 	ShowLinks      bool
 	Shortcut       string
 	DestinationURL string
@@ -396,11 +398,24 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 }
 
 func (s *Server) renderStatus(w http.ResponseWriter, r *http.Request, name string, data pageData, status int) {
+	data.DisplayHost = displayHost(r)
+	if data.DisplayHost == "" {
+		data.DisplayPrefix = "/"
+	} else {
+		data.DisplayPrefix = data.DisplayHost + "/"
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := s.templates.ExecuteTemplate(w, name, data); err != nil {
 		s.logger.Error("render template", "path", r.URL.Path, "error", err)
 	}
+}
+
+func displayHost(r *http.Request) string {
+	if r.Host != "" {
+		return r.Host
+	}
+	return r.URL.Host
 }
 
 func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {
